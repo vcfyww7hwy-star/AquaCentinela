@@ -17,9 +17,9 @@ shared core (volatility, kernels, trend z-score, flow, swing structure, time-of-
 | Phase | Deliverable | Status | Done when |
 |---|---|---|---|
 | 0 | `pine/vfi_faithful_v6.pine`: faithful port, defects D1–D8 fixed | **Built**; needs a compile check in TradingView | Matches the Python reference bar for bar |
-| R | Research foundation: VFI reference, validation statistics, E01 diagnostics, E02 overfitting study | **Built**; 9 unit tests pass | — |
-| 1 | Volume Flow v2 (pane) and shared core | Next | Parity and no-repaint tests pass; H2/H5 pre-registered |
-| 2 | Trend & Setups: trend engine, structure, AVWAP, RS, MTF table | Planned | TrendScore ≈ N(0,1) on shuffled returns |
+| R | Research foundation: VFI reference, validation statistics, E01 diagnostics, E02 overfitting study | **Built** | — |
+| 1 | `pine/volume_flow_v2.pine` and shared core: Volume Flow v2 (pane) | **Built**; 27 unit tests pass; H2, H5–H7 pre-registered; needs a compile check and a parity check in TradingView | Parity on a real export |
+| 2 | Trend & Setups: trend engine, structure, AVWAP, RS, MTF table | Next | TrendScore ≈ N(0,1) on shuffled returns |
 | 3 | Setups S1–S3, risk, alerts, strategy twin | Planned | Identical signals in indicator and strategy |
 | 4 | Validation on a stock universe per the protocol | Needs data | Acceptance criteria met |
 | 5 | Playbook per timeframe, v1.0 freeze | Planned | Owner sign-off |
