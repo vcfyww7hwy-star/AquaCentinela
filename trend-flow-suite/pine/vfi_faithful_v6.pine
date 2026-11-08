@@ -1,0 +1,146 @@
+//@version=6
+// Volume Flow Indicator — faithful Pine v6 port with defect fixes (trend-flow-suite, Phase 0)
+// Method: Markos Katsanos (TASC, June 2004). Based on the open-source VFI by LazyBear (TradingView, 18 Jun 2014)
+// and LucF's 2018 modifications; credit to both authors.
+// Purpose: a clean BASELINE. Computations and signals reproduce the LucF version; only defects are fixed:
+//   D1 swapped volume-cutoff input labels      D5 Katsanos EMA(3) smoothing offered (LazyBear SMA(3) kept as option)
+//   D2 duplicate "Buy Level" label             D6 signals/alerts only on confirmed (closed) bars
+//   D3 zero-cross dots drawn 1 bar early       D7 explicit error when the symbol has no volume
+//   D4 inverted colour logic below zero        D8 ported from Pine v1/v2 to v6; colour-blind-safe palette
+// Known limitations of the ORIGINAL design (not changed here, documented in docs/01_vfi_critique.md):
+//   ~half of each bar-to-bar change comes from the bar leaving the window; levels are not scale-invariant;
+//   on daily/weekly charts a Big Swing cannot be produced by the current bar alone.
+indicator("VFI — faithful v6 (fixed)", shorttitle = "VFI v6", overlay = false, precision = 2)
+
+// ───── Constants ─────
+const string SM_NONE = "None (LazyBear/LucF default)"
+const string SM_SMA  = "SMA 3 (LazyBear option)"
+const string SM_EMA  = "EMA 3 (Katsanos 2004 original)"
+color  C_UP    = #0072B2   // Okabe-Ito blue
+color  C_DN    = #D55E00   // Okabe-Ito vermillion
+color  C_LINE  = #E69F00   // Okabe-Ito orange (uncoloured VFI)
+color  C_MA_S  = #56B4E9   // sky blue
+color  C_MA_L  = #009E73   // bluish green
+
+// ───── Inputs ─────
+string G_CORE = "Core"
+int    lengthIn  = input.int(130, "VFI length (bars)", minval = 5, maxval = 1300, group = G_CORE)
+string smoothIn  = input.string(SM_NONE, "Final smoothing", options = [SM_NONE, SM_SMA, SM_EMA], group = G_CORE,
+     tooltip = "Katsanos' published formula ends with a 3-bar EMA. LazyBear's default is unsmoothed (SMA 3 when enabled).")
+
+string G_INTRA = "Intraday charts (any timeframe below 1D)"
+float  coefIntra  = input.float(0.1, "Dead band (× σ of typical-price returns)", minval = 0.0, step = 0.05, group = G_INTRA)
+float  vcoefIntra = input.float(3.5, "Volume cap (× average volume)", minval = 1.0, step = 0.1, group = G_INTRA,
+     tooltip = "Katsanos suggested 0.1 / 3.5 for 5–15-minute data; applying them to 1h/4h is an extrapolation.")
+string G_DAILY = "Daily and higher charts"
+float  coefDaily  = input.float(0.2, "Dead band (× σ of typical-price returns)", minval = 0.0, step = 0.05, group = G_DAILY)
+float  vcoefDaily = input.float(2.5, "Volume cap (× average volume)", minval = 1.0, step = 0.1, group = G_DAILY)
+
+string G_MA = "Moving averages of the VFI"
+int    maShortLen  = input.int(20, "Short EMA length", minval = 1, group = G_MA)
+bool   showMaShort = input.bool(true, "Show short EMA", group = G_MA)
+bool   showXShort  = input.bool(true, "Show short-EMA crosses", group = G_MA)
+int    maLongLen   = input.int(100, "Long EMA length", minval = 1, group = G_MA)
+bool   showMaLong  = input.bool(false, "Show long EMA", group = G_MA)
+bool   showXLong   = input.bool(false, "Show long-EMA crosses", group = G_MA)
+
+string G_SIG = "Signals"
+bool   showXZero   = input.bool(true, "Show zero-line crosses", group = G_SIG)
+bool   showBuySell = input.bool(false, "Show Buy/Sell level signals", group = G_SIG)
+float  buyLevel    = input.float(2.0, "Buy level", group = G_SIG)
+float  sellLevel   = input.float(-2.0, "Sell level", group = G_SIG)
+bool   showLevels  = input.bool(false, "Show Buy/Sell levels", group = G_SIG)
+bool   noRepeats   = input.bool(false, "Suppress repeated same-direction Buy/Sell", group = G_SIG,
+     tooltip = "Off = original behaviour (58–67% of signals repeat the previous direction in tests on daily index data).")
+bool   showBig     = input.bool(false, "Show Big Swings", group = G_SIG)
+float  bigSwing    = input.float(3.0, "Big Swing: VFI change since last bar", minval = 0.0, group = G_SIG,
+     tooltip = "On daily/weekly charts one bar contributes at most the volume cap (2.5) — a swing above 2.5 always needs the bar leaving the window.")
+
+string G_VIS = "Display"
+bool   colorVfi   = input.bool(false, "Colour the VFI line", group = G_VIS)
+bool   showHisto  = input.bool(false, "Show histogram (VFI − short EMA)", group = G_VIS)
+bool   colorHisto = input.bool(false, "Colour the histogram", group = G_VIS)
+
+// ───── Data guard ─────
+float cumVol = ta.cum(nz(volume))
+if barstate.islast and cumVol == 0
+    runtime.error("This symbol has no volume data, so the VFI cannot be computed. Use a symbol with volume (e.g. SPY instead of the SPX index).")
+
+// ───── VFI (Katsanos / LazyBear maths) ─────
+float coef    = timeframe.isintraday ? coefIntra  : coefDaily
+float vcoef   = timeframe.isintraday ? vcoefIntra : vcoefDaily
+float typical = hlc3
+float inter   = math.log(typical) - math.log(typical[1])
+float vinter  = ta.stdev(inter, 30)                    // population σ (biased), as in the original
+float cutoff  = coef * vinter * close
+float vave    = ta.sma(volume, lengthIn)[1]            // previous bar's average volume
+float vmax    = vave * vcoef
+float vc      = math.min(volume, vmax)
+float mf      = typical - typical[1]
+float vcp     = mf > cutoff ? vc : mf < -cutoff ? -vc : 0.0
+float sumVcp  = math.sum(vcp, lengthIn)               // evaluated on every bar (kept out of the ternary)
+float rawVfi  = vave > 0 ? sumVcp / vave : na
+float smaVfi  = ta.sma(rawVfi, 3)
+float emaVfi  = ta.ema(rawVfi, 3)
+float vfi     = smoothIn == SM_EMA ? emaVfi : smoothIn == SM_SMA ? smaVfi : rawVfi
+
+float vfiMaS = ta.ema(vfi, maShortLen)
+float vfiMaL = ta.ema(vfi, maLongLen)
+float histo  = vfi - vfiMaS
+float chg    = ta.change(vfi)
+
+// ───── Events (all ta.* calls evaluated on every bar) ─────
+bool confirmed = barstate.isconfirmed
+bool xShort    = ta.cross(vfi, vfiMaS)
+bool xLong     = ta.cross(vfi, vfiMaL)
+bool xZero     = ta.cross(vfi, 0.0)
+bool buyRaw    = ta.crossover(vfi, buyLevel)
+bool sellRaw   = ta.crossunder(vfi, sellLevel)
+bool bigUp     = chg > bigSwing
+bool bigDn     = chg < -bigSwing
+
+var int lastSig = 0
+bool buy  = buyRaw  and (not noRepeats or lastSig != 1)
+bool sell = sellRaw and (not noRepeats or lastSig != -1)
+if confirmed and buy
+    lastSig := 1
+if confirmed and sell
+    lastSig := -1
+
+bool buyC    = buy and confirmed
+bool sellC   = sell and confirmed
+bool xZeroUp = xZero and confirmed and vfi > 0
+bool xZeroDn = xZero and confirmed and vfi < 0
+
+// ───── Colours (strengthening = opaque on BOTH sides of zero) ─────
+color vfiCol = not colorVfi ? C_LINE :
+     vfi > 0 ? (vfi > vfi[1] ? C_UP : color.new(C_UP, 50)) :
+     (vfi < vfi[1] ? C_DN : color.new(C_DN, 50))
+color histCol = not colorHisto ? color.new(color.gray, 50) :
+     histo > 0 ? (histo > histo[1] ? color.new(C_UP, 30) : color.new(C_UP, 70)) :
+     (histo < histo[1] ? color.new(C_DN, 30) : color.new(C_DN, 70))
+
+// ───── Plots ─────
+hline(0, "Zero line", color = color.new(color.gray, 40), linestyle = hline.style_solid)
+plot(showHisto ? histo : na, "Histogram", color = histCol, linewidth = 3, style = plot.style_histogram)
+plot(vfi, "VFI", color = vfiCol, linewidth = 2)
+plot(showMaShort ? vfiMaS : na, "Short EMA of VFI", color = C_MA_S, linewidth = 1)
+plot(showMaLong ? vfiMaL : na, "Long EMA of VFI", color = C_MA_L, linewidth = 1)
+
+// Crosses are drawn on the bar where they become known (no back-dating)
+plot(showXShort and xShort and confirmed ? vfiMaS : na, "Short-EMA crosses", color = vfi > vfiMaS ? C_UP : C_DN, style = plot.style_circles, linewidth = 3)
+plot(showXLong and xLong and confirmed ? vfiMaL : na, "Long-EMA crosses", color = vfi > vfiMaL ? C_UP : C_DN, style = plot.style_circles, linewidth = 2)
+plot(showXZero and xZero and confirmed ? 0.0 : na, "Zero crosses", color = vfi > 0 ? C_UP : C_DN, style = plot.style_circles, linewidth = 4)
+
+plotchar(showBig and bigUp and confirmed, title = "Big Swing Up", char = "↑", location = location.top, color = color.new(C_UP, 30), size = size.tiny)
+plotchar(showBig and bigDn and confirmed, title = "Big Swing Down", char = "↓", location = location.bottom, color = color.new(C_DN, 30), size = size.tiny)
+plotshape(showBuySell and buyC, title = "Buy signal", style = shape.triangleup, location = location.top, color = C_UP, size = size.small)
+plotshape(showBuySell and sellC, title = "Sell signal", style = shape.triangledown, location = location.bottom, color = C_DN, size = size.small)
+plot(showLevels ? buyLevel : na, "Buy level", color = color.new(C_UP, 50), style = plot.style_circles, linewidth = 1)
+plot(showLevels ? sellLevel : na, "Sell level", color = color.new(C_DN, 50), style = plot.style_circles, linewidth = 1)
+
+// ───── Alerts (fire once, at bar close) ─────
+alertcondition(buyC, "VFI Buy", "VFI Buy on {{ticker}} ({{interval}}) at {{close}}")
+alertcondition(sellC, "VFI Sell", "VFI Sell on {{ticker}} ({{interval}}) at {{close}}")
+alertcondition(xZeroUp, "VFI crosses above zero", "VFI crossed above zero on {{ticker}} ({{interval}}) at {{close}}")
+alertcondition(xZeroDn, "VFI crosses below zero", "VFI crossed below zero on {{ticker}} ({{interval}}) at {{close}}")
