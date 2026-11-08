@@ -13,9 +13,9 @@
 indicator("VFI — faithful v6 (fixed)", shorttitle = "VFI v6", overlay = false, precision = 2)
 
 // ───── Constants ─────
-const string SM_NONE = "None (LazyBear/LucF default)"
-const string SM_SMA  = "SMA 3 (LazyBear option)"
-const string SM_EMA  = "EMA 3 (Katsanos 2004 original)"
+string SM_NONE = "None (LazyBear/LucF default)"
+string SM_SMA  = "SMA 3 (LazyBear option)"
+string SM_EMA  = "EMA 3 (Katsanos 2004 original)"
 color  C_UP    = #0072B2   // Okabe-Ito blue
 color  C_DN    = #D55E00   // Okabe-Ito vermillion
 color  C_LINE  = #E69F00   // Okabe-Ito orange (uncoloured VFI)
