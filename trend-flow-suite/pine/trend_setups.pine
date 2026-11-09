@@ -1,0 +1,451 @@
+//@version=6
+// Trend & Setups — trend-flow-suite, Phases 2–3 (price overlay)
+// Python twin: research/tfs/trend.py — same maths and state machines (tests: research/tests/test_trend.py).
+// Trend   calibrated trend score (three EMA crossovers of log price, each divided by its exact random-walk
+//         standard deviation → N(0,1) when there is no trend); regime with hysteresis (enter ±1, exit ±0.3)
+// Context regime on a higher timeframe (non-repainting) and relative strength vs a benchmark
+// Levels  ATR-reversal swings (HH/HL/LH/LL), last swing high/low, anchored VWAP from the last swing
+// Setups  S1 pullback continuation · S2 compression breakout · S3 confirmed reversal (half size)
+// Risk    initial stop, chandelier trail, regime exit, position size from account size and risk %
+// Strategy version: generated from this file by research/tools/build_strategy.py — do not edit it by hand.
+// Spec: docs/04_trend_setups.md. Personal research tool, not investment advice.
+indicator("Trend & Setups", shorttitle = "T&S", overlay = true, precision = 2, max_bars_back = 2000, max_labels_count = 500, max_lines_count = 100) // @header
+
+// ───── Palette (Okabe-Ito, colour-blind safe) ─────
+color C_UP    = #0072B2
+color C_DN    = #D55E00
+color C_NEU   = #999999
+color C_ENTRY = #009E73
+color C_EXIT  = #CC79A7
+color C_VWAP  = #E69F00
+
+// ───── Shared core: twins of research/tfs/core.py ─────
+ema1(float x, int n) =>
+    float a = 2.0 / (n + 1)
+    var float e = na
+    e := na(e) ? x : na(x) ? e : a * x + (1.0 - a) * e
+    e
+
+rma1(float x, int n) =>
+    float a = 1.0 / n
+    var float e = na
+    e := na(e) ? x : na(x) ? e : a * x + (1.0 - a) * e
+    e
+
+smooth2(float x, int n) =>
+    ema1(ema1(x, n), n)
+
+slotEwmaLagged(float x, int slot, int span) =>
+    var array<float> st = array.new<float>()
+    while array.size(st) <= slot
+        array.push(st, na)
+    float prev = array.get(st, slot)
+    if barstate.isconfirmed and not na(x)
+        float a = 2.0 / (span + 1)
+        array.set(st, slot, na(prev) ? x : a * x + (1.0 - a) * prev)
+    prev
+
+// ───── Trend engine: twins of research/tfs/trend.py ─────
+// Constants = exact null standard deviations of each crossover and of their average (trend.py: pair_null_sd, composite_null_sd)
+trendScore(float lp, int sigSpan) =>
+    float r   = lp - lp[1]
+    float sig = math.sqrt(slotEwmaLagged(r * r, 0, sigSpan))
+    float x1  = ema1(lp, 8) - ema1(lp, 24)
+    float x2  = ema1(lp, 16) - ema1(lp, 48)
+    float x3  = ema1(lp, 32) - ema1(lp, 96)
+    float z1  = sig > 0 ? x1 / (sig * 1.417891627264463) : na
+    float z2  = sig > 0 ? x2 / (sig * 2.0013016597538043) : na
+    float z3  = sig > 0 ? x3 / (sig * 2.82888744326575) : na
+    (z1 + z2 + z3) / 3.0 / 0.9171347868042847
+
+trendDir(float ts, float enterT, float exitT) =>
+    var int d = 0
+    if not na(ts)
+        if ts >= enterT
+            d := 1
+        else if ts <= -enterT
+            d := -1
+        else if d == 1 and ts < exitT
+            d := 0
+        else if d == -1 and ts > -exitT
+            d := 0
+    d
+
+// Value of the last COMPLETED bar of the requested timeframe (used with lookahead_on → no repainting)
+htfTrend(int sigSpan, float enterT, float exitT) =>
+    float ts = trendScore(math.log(close), sigSpan)
+    int d = trendDir(ts, enterT, exitT)
+    [ts[1], d[1]]
+
+tfAtLeastChart(string tf) =>
+    timeframe.in_seconds(tf) >= timeframe.in_seconds(timeframe.period) ? tf : timeframe.period
+
+isChartTf(string tf) =>
+    timeframe.in_seconds(tf) == timeframe.in_seconds(timeframe.period)
+
+stateText(int d, float s, float strongT) =>
+    d == 1 ? (s >= strongT ? "Strong up" : "Up") : d == -1 ? (s <= -strongT ? "Strong down" : "Down") : "Neutral"
+
+stateColor(int d) =>
+    d == 1 ? C_UP : d == -1 ? C_DN : C_NEU
+
+// ───── Inputs ─────
+string G_T = "Trend"
+int    sigSpan   = input.int(100, "Volatility span (bars)", minval = 10, group = G_T)
+float  enterThr  = input.float(1.0, "Regime: enter at |score| ≥", minval = 0.1, step = 0.1, group = G_T)
+float  exitThr   = input.float(0.3, "Regime: back to neutral below |score|", minval = 0.0, step = 0.1, group = G_T)
+float  strongThr = input.float(2.0, "Strong trend at |score| ≥", minval = 0.5, step = 0.25, group = G_T)
+string ctxIn     = input.string("Auto", "Context timeframe", options = ["Auto", "60", "240", "D", "W", "M"], group = G_T,
+     tooltip = "Auto: below 1h → 1h, 1h → 4h, 4h → D, D → W, W → M. S1 and S2 need the context regime not to be down.")
+string benchIn   = input.symbol("AMEX:SPY", "Relative-strength benchmark", group = G_T)
+bool   useRs     = input.bool(true, "S1/S2 need relative strength not down", group = G_T)
+
+string G_S = "Structure and levels"
+float  swingAtr   = input.float(2.0, "Swing size (ATR)", minval = 0.5, step = 0.25, group = G_S)
+int    atrLen     = input.int(14, "ATR length", minval = 1, group = G_S)
+int    baseWin    = input.int(50, "Baseline window (SMA-equivalent bars)", minval = 3, group = G_S)
+bool   showSwings = input.bool(true, "Label swings (HH / HL / LH / LL)", group = G_S)
+bool   showLevels = input.bool(true, "Show last swing high / low", group = G_S)
+bool   showAvwap  = input.bool(true, "Show anchored VWAP from the last swing", group = G_S)
+bool   showBands  = input.bool(false, "Show ±2 ATR bands around the baseline", group = G_S)
+bool   showChoch  = input.bool(true, "Mark structure breaks against the trend", group = G_S)
+
+string G_SET = "Setups (long side)"
+bool   useS1   = input.bool(true, "S1 pullback continuation", group = G_SET)
+bool   useS2   = input.bool(true, "S2 compression breakout", group = G_SET)
+bool   useS3   = input.bool(true, "S3 confirmed reversal (half size)", group = G_SET)
+float  pullExt = input.float(0.25, "S1: pullback reaches baseline + (ATR)", step = 0.05, group = G_SET)
+float  pullVol = input.float(1.0, "S1: max average relative volume during the pullback", step = 0.1, group = G_SET)
+float  compRat = input.float(0.8, "S2: compression when ATR14 ≤ this × ATR100", step = 0.05, group = G_SET)
+int    brkLen  = input.int(20, "S2: breakout above the prior N-bar high", minval = 2, group = G_SET)
+float  brkRvol = input.float(1.5, "S2: minimum relative volume", step = 0.1, group = G_SET)
+int    revLb   = input.int(20, "S3: look-back for downtrend and oversold (bars)", minval = 2, group = G_SET)
+float  revExt  = input.float(-2.0, "S3: oversold when extension ≤ (ATR)", step = 0.25, group = G_SET)
+
+string G_R = "Risk"
+float  stopBuf   = input.float(0.25, "Stop buffer (ATR)", minval = 0.0, step = 0.05, group = G_R)
+float  trailAtr  = input.float(3.0, "Trailing stop (ATR below the highest high)", minval = 0.5, step = 0.25, group = G_R)
+float  equityIn  = input.float(10000, "Account size (for position size)", minval = 0, group = G_R)
+float  riskPct   = input.float(1.0, "Risk per trade (%)", minval = 0.0, step = 0.25, group = G_R)
+bool   showTradeLabels = input.bool(true, "Label entries and exits with details", group = G_R)
+int    warmup    = input.int(200, "No signals before bar number", minval = 0, group = G_R)
+
+bool   showTable = input.bool(true, "Show status table", group = "Display")
+bool   colorBars = input.bool(false, "Colour price bars by regime", group = "Display")
+
+// ───── Core series ─────
+bool  conf  = barstate.isconfirmed
+float ts    = trendScore(math.log(close), sigSpan)
+int   dir   = trendDir(ts, enterThr, exitThr)
+float tr    = na(close[1]) ? high - low : math.max(high - low, math.abs(high - close[1]), math.abs(low - close[1]))
+float atr   = rma1(tr, atrLen)
+float atrL  = rma1(tr, 100)
+float base  = smooth2(close, math.floor((baseWin + 1) / 2.0))
+float ext   = atr > 0 ? (close - base) / atr : na
+
+// Relative volume (time-of-day normalised intraday, 50 bars on D/W/M) — identical to Volume Flow v2
+var int slotCount = -1
+slotCount := session.isfirstbar ? 0 : slotCount + 1
+int   slot  = timeframe.isintraday ? slotCount : 0
+int   nSpan = timeframe.isintraday ? 20 : 50
+float ev    = slotEwmaLagged(volume, slot, nSpan)
+float rvol  = ev > 0 ? volume / ev : na
+
+// Relative strength vs benchmark
+float benchClose = request.security(benchIn, timeframe.period, close)
+float rsTs  = trendScore(math.log(close / benchClose), sigSpan)
+int   rsDir = trendDir(rsTs, enterThr, exitThr)
+
+// Context and multi-timeframe regimes (last completed higher-timeframe bar)
+string autoCtx = timeframe.isintraday ? (timeframe.multiplier < 60 ? "60" : timeframe.multiplier < 240 ? "240" : "D") : timeframe.isdaily ? "W" : "M"
+string ctxTf   = tfAtLeastChart(ctxIn == "Auto" ? autoCtx : ctxIn)
+[ctxTs, ctxDir] = request.security(syminfo.tickerid, ctxTf, htfTrend(sigSpan, enterThr, exitThr), lookahead = barmerge.lookahead_on)
+string tf1 = tfAtLeastChart("60")
+string tf2 = tfAtLeastChart("240")
+string tf3 = tfAtLeastChart("D")
+string tf4 = tfAtLeastChart("W")
+[ts1, d1] = request.security(syminfo.tickerid, tf1, htfTrend(sigSpan, enterThr, exitThr), lookahead = barmerge.lookahead_on)
+[ts2, d2] = request.security(syminfo.tickerid, tf2, htfTrend(sigSpan, enterThr, exitThr), lookahead = barmerge.lookahead_on)
+[ts3, d3] = request.security(syminfo.tickerid, tf3, htfTrend(sigSpan, enterThr, exitThr), lookahead = barmerge.lookahead_on)
+[ts4, d4] = request.security(syminfo.tickerid, tf4, htfTrend(sigSpan, enterThr, exitThr), lookahead = barmerge.lookahead_on)
+
+// Helpers for the setups
+float hhPrev   = ta.highest(high, brkLen)[1]
+float llStop   = ta.lowest(low, 10)
+bool  compPrev = atr[1] <= compRat * atrL[1]
+float minExt   = ta.lowest(ext, revLb)
+
+// ───── Structure: ATR-reversal swings, confirmed on the close ─────
+var int   zdir         = 0
+var float hiPx         = high
+var int   hiBar        = 0
+var float loPx         = low
+var int   loBar        = 0
+var float loSinceHi    = low
+var int   loSinceHiBar = 0
+var float hiSinceLo    = high
+var int   hiSinceLoBar = 0
+var float lastSH       = na
+var float lastSL       = na
+var float prevSH       = na
+var float prevSL       = na
+var int   lastSHbar    = -1
+var int   lastSLbar    = -1
+float shPrev = lastSH
+float slPrev = lastSL
+
+if zdir >= 0
+    if high > hiPx
+        hiPx         := high
+        hiBar        := bar_index
+        loSinceHi    := low
+        loSinceHiBar := bar_index
+    else if low < loSinceHi
+        loSinceHi    := low
+        loSinceHiBar := bar_index
+if zdir <= 0
+    if low < loPx
+        loPx         := low
+        loBar        := bar_index
+        hiSinceLo    := high
+        hiSinceLoBar := bar_index
+    else if high > hiSinceLo
+        hiSinceLo    := high
+        hiSinceLoBar := bar_index
+
+bool newSH = false
+bool newSL = false
+if not na(atr)
+    if zdir >= 0 and close < hiPx - swingAtr * atr
+        newSH     := true
+        prevSH    := lastSH
+        lastSH    := hiPx
+        lastSHbar := hiBar
+        zdir      := -1
+        loPx      := loSinceHi
+        loBar     := loSinceHiBar
+        float m  = na
+        int   mb = loBar
+        for i = 0 to math.min(bar_index - loBar, 1999)
+            if na(m) or high[i] > m
+                m  := high[i]
+                mb := bar_index - i
+        hiSinceLo    := m
+        hiSinceLoBar := mb
+    else if zdir <= 0 and close > loPx + swingAtr * atr
+        newSL     := true
+        prevSL    := lastSL
+        lastSL    := loPx
+        lastSLbar := loBar
+        zdir      := 1
+        hiPx      := hiSinceLo
+        hiBar     := hiSinceLoBar
+        float m  = na
+        int   mb = hiBar
+        for i = 0 to math.min(bar_index - hiBar, 1999)
+            if na(m) or low[i] < m
+                m  := low[i]
+                mb := bar_index - i
+        loSinceHi    := m
+        loSinceHiBar := mb
+
+string swLbl = newSH ? (not na(prevSH) and lastSH > prevSH ? "HH" : not na(prevSH) ? "LH" : "SH") : newSL ? (not na(prevSL) and lastSL > prevSL ? "HL" : not na(prevSL) ? "LL" : "SL") : ""
+
+// ───── Anchored VWAPs: recomputed from the pivot when a swing is confirmed, then extended bar by bar ─────
+var float avlPV = 0.0
+var float avlV  = 0.0
+var float avhPV = 0.0
+var float avhV  = 0.0
+float vz = nz(volume)
+if newSL
+    avlPV := 0.0
+    avlV  := 0.0
+    for i = 0 to math.min(bar_index - lastSLbar, 1999)
+        avlPV += hlc3[i] * nz(volume[i])
+        avlV  += nz(volume[i])
+else if lastSLbar >= 0
+    avlPV += hlc3 * vz
+    avlV  += vz
+if newSH
+    avhPV := 0.0
+    avhV  := 0.0
+    for i = 0 to math.min(bar_index - lastSHbar, 1999)
+        avhPV += hlc3[i] * nz(volume[i])
+        avhV  += nz(volume[i])
+else if lastSHbar >= 0
+    avhPV += hlc3 * vz
+    avhV  += vz
+float avwapL = avlV > 0 ? avlPV / avlV : na
+float avwapH = avhV > 0 ? avhPV / avhV : na
+float avwap  = dir >= 0 ? avwapL : avwapH
+
+// ───── Structure breaks (levels as of the previous bar) ─────
+bool breakUp = not na(shPrev) and close > shPrev and close[1] <= shPrev
+bool breakDn = not na(slPrev) and close < slPrev and close[1] >= slPrev
+bool chochUp = breakUp and dir <= 0
+bool chochDn = breakDn and dir >= 0
+
+// ───── Trade engine (long side): exits first, then entries ─────
+var int   lastDownBar = na
+if dir == -1
+    lastDownBar := bar_index
+var bool  inTrade     = false
+var float entryPx     = na
+var float stopPx      = na
+var float stopInit    = na
+var float trail       = na
+var float hiSince     = na
+var int   setupId     = 0
+var bool  armed       = false
+var float pbLow       = na
+var float pbVs        = 0.0
+var int   pbVn        = 0
+
+bool  exited     = false
+int   exitReason = 0
+float exitR      = na
+float stopLevel  = na
+if inTrade
+    hiSince := math.max(hiSince, high)
+    float cand = hiSince - trailAtr * atr
+    if not na(cand)
+        trail := na(trail) ? cand : math.max(trail, cand)
+    float level = na(trail) ? stopPx : math.max(stopPx, trail)
+    if close < level
+        exitReason := not na(trail) and trail > stopPx ? 2 : 1
+    else if dir == -1
+        exitReason := 3
+    if exitReason > 0
+        exitR   := (close - entryPx) / (entryPx - stopInit)
+        inTrade := false
+        exited  := true
+    else
+        stopLevel := level
+
+bool  ctxOk    = ctxDir >= 0 and (not useRs or rsDir >= 0)
+int   newEntry = 0
+float stopNew  = na
+if not inTrade and not exited and bar_index >= warmup
+    if armed
+        pbLow := math.min(pbLow, low)
+        if not na(rvol)
+            pbVs += rvol
+            pbVn += 1
+        if dir != 1 or (not na(slPrev) and close < slPrev)
+            armed := false
+        else if close > high[1]
+            bool volOk = pbVn == 0 or pbVs / pbVn <= pullVol
+            if ctxOk and volOk and useS1
+                newEntry := 1
+                stopNew  := pbLow - stopBuf * atr
+            armed := false
+    else if dir == 1 and not na(atr) and close <= base + pullExt * atr
+        armed := true
+        pbLow := low
+        pbVs  := na(rvol) ? 0.0 : rvol
+        pbVn  := na(rvol) ? 0 : 1
+    if newEntry == 0 and useS2 and dir >= 0 and ctxOk and compPrev and not na(hhPrev) and close > hhPrev and (na(rvol) or rvol >= brkRvol)
+        newEntry := 2
+        stopNew  := llStop - stopBuf * atr
+    if newEntry == 0 and useS3 and breakUp and dir <= 0 and ts > -exitThr and not na(lastDownBar) and bar_index - lastDownBar <= revLb and minExt <= revExt and not na(lastSL)
+        newEntry := 3
+        stopNew  := lastSL - stopBuf * atr
+    if newEntry > 0 and not na(stopNew) and close - stopNew > 0
+        inTrade   := true
+        entryPx   := close
+        stopPx    := stopNew
+        stopInit  := stopNew
+        trail     := na
+        hiSince   := high
+        setupId   := newEntry
+        stopLevel := stopNew
+        armed     := false
+    else
+        newEntry := 0
+if inTrade
+    armed := false
+
+// Position size for the entry (S3 = half size)
+float equityNow = equityIn // @equity
+float shares    = newEntry > 0 ? math.floor(equityNow * riskPct / 100.0 / (entryPx - stopInit) * (newEntry == 3 ? 0.5 : 1.0)) : na
+string setupName = newEntry == 1 ? "S1 pullback" : newEntry == 2 ? "S2 breakout" : newEntry == 3 ? "S3 reversal (half size)" : ""
+string exitText  = exitReason == 1 ? "stop" : exitReason == 2 ? "trailing stop" : exitReason == 3 ? "trend turned down" : ""
+
+// ───── Plots ─────
+color dirCol = stateColor(dir)
+plot(base, "Baseline", color = dirCol, linewidth = 2)
+plot(showBands ? base + 2 * atr : na, "Upper band (+2 ATR)", color = color.new(C_NEU, 60))
+plot(showBands ? base - 2 * atr : na, "Lower band (−2 ATR)", color = color.new(C_NEU, 60))
+plot(showLevels ? lastSH : na, "Last swing high", color = color.new(C_DN, 45), style = plot.style_stepline)
+plot(showLevels ? lastSL : na, "Last swing low", color = color.new(C_UP, 45), style = plot.style_stepline)
+plot(showAvwap ? avwap : na, "Anchored VWAP", color = C_VWAP, linewidth = 1)
+plot(stopLevel, "Stop / trailing stop", color = C_EXIT, linewidth = 2, style = plot.style_linebr)
+barcolor(colorBars ? dirCol : na)
+
+plotshape(newEntry == 1 and conf, title = "S1 pullback entry", style = shape.labelup, location = location.belowbar, color = C_ENTRY, text = "P", textcolor = color.white, size = size.small)
+plotshape(newEntry == 2 and conf, title = "S2 breakout entry", style = shape.labelup, location = location.belowbar, color = C_ENTRY, text = "B", textcolor = color.white, size = size.small)
+plotshape(newEntry == 3 and conf, title = "S3 reversal entry", style = shape.labelup, location = location.belowbar, color = C_ENTRY, text = "R", textcolor = color.white, size = size.small)
+plotshape(exited and conf, title = "Exit", style = shape.labeldown, location = location.abovebar, color = C_EXIT, text = "X", textcolor = color.white, size = size.small)
+plotshape(showChoch and chochDn and conf, title = "Break down against the uptrend", style = shape.triangledown, location = location.abovebar, color = C_DN, size = size.tiny)
+plotshape(showChoch and chochUp and conf, title = "Break up against the downtrend", style = shape.triangleup, location = location.belowbar, color = C_UP, size = size.tiny)
+
+// Diagnostic series for Pine ↔ Python parity checks (data window and chart export only)
+plot(ts, "dbg_ts", display = display.data_window)
+plot(dir, "dbg_dir", display = display.data_window)
+plot(ext, "dbg_ext", display = display.data_window)
+plot(avwapL, "dbg_avwap_low", display = display.data_window)
+plot(lastSH, "dbg_last_sh", display = display.data_window)
+plot(lastSL, "dbg_last_sl", display = display.data_window)
+plot(newEntry, "dbg_entry", display = display.data_window)
+plot(exitReason, "dbg_exit_reason", display = display.data_window)
+
+// Swing labels (drawn at the swing bar once the swing is confirmed)
+if showSwings and newSH and conf
+    label.new(lastSHbar, lastSH, swLbl, style = label.style_label_down, color = color.new(C_DN, 85), textcolor = C_DN, size = size.tiny)
+if showSwings and newSL and conf
+    label.new(lastSLbar, lastSL, swLbl, style = label.style_label_up, color = color.new(C_UP, 85), textcolor = C_UP, size = size.tiny)
+
+// Entry and exit labels with the numbers you need to place the order
+if showTradeLabels and newEntry > 0 and conf
+    label.new(bar_index, low, setupName + "\nEntry " + str.tostring(entryPx, format.mintick) + "\nStop " + str.tostring(stopInit, format.mintick) + "\n1R = " + str.tostring(entryPx - stopInit, format.mintick) + "\nSize " + str.tostring(shares, "#") + " sh", yloc = yloc.belowbar, style = label.style_label_up, color = color.new(C_ENTRY, 15), textcolor = color.white, size = size.small)
+if showTradeLabels and exited and conf
+    label.new(bar_index, high, "Exit: " + exitText + "\n" + str.tostring(exitR, "0.00") + " R", yloc = yloc.abovebar, style = label.style_label_down, color = color.new(C_EXIT, 15), textcolor = color.white, size = size.small)
+
+// ───── Status table ─────
+var table tbl = table.new(position.top_right, 2, 9, bgcolor = color.new(color.black, 85), border_width = 1)
+if showTable and barstate.islast
+    table.cell(tbl, 0, 0, "Trend (this chart)", text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 1, 0, stateText(dir, ts, strongThr) + "  z " + str.tostring(ts, "0.0"), text_color = stateColor(dir), text_size = size.small)
+    table.cell(tbl, 0, 1, "Context (" + ctxTf + ")", text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 1, 1, stateText(ctxDir, ctxTs, strongThr), text_color = stateColor(ctxDir), text_size = size.small)
+    table.cell(tbl, 0, 2, "1h", text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 1, 2, isChartTf("60") ? stateText(dir, ts, strongThr) : tf1 == "60" ? stateText(d1, ts1, strongThr) : "—", text_color = isChartTf("60") ? stateColor(dir) : stateColor(d1), text_size = size.small)
+    table.cell(tbl, 0, 3, "4h", text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 1, 3, isChartTf("240") ? stateText(dir, ts, strongThr) : tf2 == "240" ? stateText(d2, ts2, strongThr) : "—", text_color = isChartTf("240") ? stateColor(dir) : stateColor(d2), text_size = size.small)
+    table.cell(tbl, 0, 4, "Daily", text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 1, 4, isChartTf("D") ? stateText(dir, ts, strongThr) : tf3 == "D" ? stateText(d3, ts3, strongThr) : "—", text_color = isChartTf("D") ? stateColor(dir) : stateColor(d3), text_size = size.small)
+    table.cell(tbl, 0, 5, "Weekly", text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 1, 5, isChartTf("W") ? stateText(dir, ts, strongThr) : tf4 == "W" ? stateText(d4, ts4, strongThr) : "—", text_color = isChartTf("W") ? stateColor(dir) : stateColor(d4), text_size = size.small)
+    table.cell(tbl, 0, 6, "vs " + benchIn, text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 1, 6, stateText(rsDir, rsTs, strongThr), text_color = stateColor(rsDir), text_size = size.small)
+    table.cell(tbl, 0, 7, "Extension", text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 1, 7, str.tostring(ext, "0.0") + " ATR", text_color = color.silver, text_size = size.small)
+    table.cell(tbl, 0, 8, "Trade", text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 1, 8, inTrade ? ("S" + str.tostring(setupId) + " · stop " + str.tostring(stopLevel, format.mintick) + " · " + str.tostring((close - entryPx) / (entryPx - stopInit), "0.0") + " R") : "flat", text_color = inTrade ? C_ENTRY : color.silver, text_size = size.small)
+
+// ───── Alerts ─────
+// "Any alert() function call" alerts carry the full details (entry, stop, size)
+if newEntry > 0 and conf
+    alert(syminfo.ticker + " " + timeframe.period + ": " + setupName + " — entry " + str.tostring(entryPx, format.mintick) + ", stop " + str.tostring(stopInit, format.mintick) + ", size " + str.tostring(shares, "#") + " sh", alert.freq_once_per_bar_close)
+if exited and conf
+    alert(syminfo.ticker + " " + timeframe.period + ": exit (" + exitText + ") at " + str.tostring(close, format.mintick) + ", " + str.tostring(exitR, "0.00") + " R", alert.freq_once_per_bar_close)
+// @indicator-only begin
+alertcondition(newEntry > 0 and conf, "T&S any entry", "T&S entry on {{ticker}} ({{interval}}) at {{close}}")
+alertcondition(newEntry == 1 and conf, "T&S S1 pullback", "T&S S1 pullback entry on {{ticker}} ({{interval}}) at {{close}}")
+alertcondition(newEntry == 2 and conf, "T&S S2 breakout", "T&S S2 breakout entry on {{ticker}} ({{interval}}) at {{close}}")
+alertcondition(newEntry == 3 and conf, "T&S S3 reversal", "T&S S3 reversal entry on {{ticker}} ({{interval}}) at {{close}}")
+alertcondition(exited and conf, "T&S exit", "T&S exit on {{ticker}} ({{interval}}) at {{close}}")
+alertcondition(dir == 1 and dir[1] != 1 and conf, "T&S trend turned up", "T&S: trend turned up on {{ticker}} ({{interval}})")
+alertcondition(dir == -1 and dir[1] != -1 and conf, "T&S trend turned down", "T&S: trend turned down on {{ticker}} ({{interval}})")
+alertcondition(chochDn and conf, "T&S break down against uptrend", "T&S: structure break down against the trend on {{ticker}} ({{interval}})")
+// @indicator-only end
