@@ -34,8 +34,10 @@ python -m pytest -q                         # 44 tests
 python -m experiments.e02_overfitting       # about 2 minutes
 ```
 
-To use a Pine script, open TradingView's Pine Editor, paste the file from `pine/`, then
-**Save** and **Add to chart**. Use a symbol that has volume (SPY rather than SPX).
+To use a Pine script, open TradingView's Pine Editor and create a new indicator. **Select all of the
+starter template and delete it first.** Otherwise TradingView reports error CE10243, "Scripts must
+contain one declaration statement". Then paste the file from `pine/`, **Save** and **Add to chart**.
+Use a symbol that has volume (SPY rather than SPX).
 
 ## Conventions
 

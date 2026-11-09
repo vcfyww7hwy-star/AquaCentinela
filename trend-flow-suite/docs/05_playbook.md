@@ -6,7 +6,9 @@ disciplined way to *use* the tools, not proof that they make money. Trade small.
 ## Chart set-up (once)
 
 1. Use a US stock or ETF chart with regular trading hours only (ETH off).
-2. Add **Trend & Setups** (overlay) and **Volume Flow v2** (pane).
+2. Add **Trend & Setups** (overlay) and **Volume Flow v2** (pane). When you paste a script into a new
+   Pine Editor tab, select all and delete TradingView's starter template first; otherwise you get
+   error CE10243 (two declaration statements).
 3. In Trend & Setups → Risk, set your **Account size** and **Risk per trade %** (start with 0.5–1%).
 4. Optional: if your plan allows custom timeframes, use 65-minute bars instead of 1h and
    195-minute bars instead of 4h, which gives equal-length bars.
