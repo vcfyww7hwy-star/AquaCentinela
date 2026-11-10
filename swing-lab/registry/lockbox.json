@@ -1,0 +1,7 @@
+{
+  "status": "SEALED",
+  "sealed_on": "2026-11-10",
+  "daily_lockbox": {"start": "2023-01-03", "end": "2026-11-09"},
+  "intraday_lockbox": {"start": "2025-01-02", "end": "2026-11-09"},
+  "openings": []
+}
