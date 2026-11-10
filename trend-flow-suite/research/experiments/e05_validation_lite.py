@@ -63,8 +63,9 @@ def features(item):
             "raw1_baseline": bl["raw_s1"].to_numpy(), "stop1_baseline": bl["stop1"].to_numpy(),
             "pbv_baseline": bl["pb_rvol"].to_numpy(),
             "raw2": sw["raw_s2"].to_numpy(), "stop2": sw["stop2"].to_numpy(),
-            "raw3": sw["raw_s3"].to_numpy(), "stop3": sw["stop3"].to_numpy()}
-    pan = {"month": (df.index.year * 12 + df.index.month - 1).to_numpy(),
+            "raw3": sw["raw_s3"].to_numpy(), "stop3": sw["stop3"].to_numpy(),
+            "new_sh": sw["new_sh"].to_numpy(), "bench": b, "sig0": sig0}
+    pan = {"t": np.arange(n), "month": (df.index.year * 12 + df.index.month - 1).to_numpy(),
            "ts": sw["ts"].to_numpy(), "dir": feat["d"], "ctx": ctx, "rs": feat["rs"], "mkt": feat["mkt"],
            "ext": sw["ext"].to_numpy(), "rvol": sw["rvol"].to_numpy(),
            "raw1_swing": feat["raw1_swing"], "raw1_baseline": feat["raw1_baseline"],

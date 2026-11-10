@@ -69,3 +69,63 @@ Adopted on first principles regardless of these results, and reported for their 
 The plan holds about 30 pre-specified comparisons. No parameter is tuned: every threshold keeps the
 value it had before this experiment (trend thresholds ±1.0/0.3, swing size 2 ATR, trail 3 ATR,
 breakout 20 bars, and so on). Anything explored beyond this plan will be labelled *exploratory*.
+
+## Part 2: Results and what they changed
+
+### 2.1 Pre-registered results (E05)
+
+Run on 489 S&P 500 stocks (A: 231, B: 258; evaluation Sep 2014 – Feb 2018) and 31 Dow-set stocks
+(evaluation Aug 2007 – Feb 2013). Full output: `research/results/e05_validation_lite.json`.
+`fz10` is the 10-bar forward return in risk units; brackets are 95% intervals.
+
+| Question | Result | Decision |
+|---|---|---|
+| Q1 Regime information | None. Chart regime up vs rest: +0.01 (A), +0.01 (B), −0.03 (DJ), all intervals span zero. Context, market and strength: also not significant. "Market down" was followed by *better* returns on A and B (+0.35, significant) | The chart-timeframe regime is descriptive, not predictive |
+| Q2 S1 rule | Neither rule beats ordinary up-regime bars: v2 −0.03 / −0.02 / −0.13; v1 −0.05 / +0.01 / −0.14. Both are slightly negative over 5 bars | Neither is kept as a default entry |
+| Q3 S1 filters | No filter passes. The "not down" filters almost never bind, and where they do the sign is wrong | All off by default |
+| Q4 S2, S3 | S2: −0.13 / −0.17 / +0.16. S3: +0.04 / −0.04 / +0.03. Nothing significant, signs inconsistent | Both off by default |
+| Q5 Volume | Asymmetry, accumulation/distribution, climaxes and divergences: nothing significant in the predicted direction; several point the other way. Regression coefficient of asymmetry ≈ −0.02 / −0.01 / 0.00. One pass: absorption at lows, +0.22 [+0.02, +0.38] on A, same sign on B (+0.13) and DJ (+0.02) | Only "absorption at lows" stays in the default display; with about 30 comparisons one pass is what chance alone would give |
+| Q6 Stops and exits | Close-based vs intrabar stops: no significant difference in average R, but 8.5% of close-based trades lose more than 1.5R against 1.4% with intrabar stops. Structure trail: not better than the chandelier | Intrabar stops and the chandelier stay |
+| Q7 S1 vs random entries | Average R of S1 trades vs random entries in the same uptrends: +0.09 vs +0.08 (A, p = 0.43), +0.11 vs +0.07 (B, p = 0.05), −0.07 vs +0.06 (DJ, p = 0.95) | S1's timing adds nothing reliable |
+
+Trade level, all v1/v2 setups, no filters: average R +0.10 [−0.03, +0.22] (A), +0.09 [−0.06, +0.24]
+(B), −0.01 [−0.20, +0.19] (DJ), before costs. **No detectable edge.**
+
+The consistent hint in these tables is short-term mean reversion: conditions that look bad are
+followed by slightly better returns. The v1/v2 entry waits for a close above the prior bar's high,
+which gives that effect away.
+
+### 2.2 Exploratory analysis on the development half only (E06, E06b; not pre-registered)
+
+A short menu of effects from the literature, looked at on set A only:
+
+- **Dips in long-term uptrends bounce.** With the weekly context up and the 5-bar return at or
+  below −1.5σ, forward returns exceed other context-up bars: f5 +0.20 [+0.01, +0.35],
+  f10 +0.25 [+0.08, +0.41]. The effect is a plateau across dip depths (−1 to −2σ), dip windows
+  (3, 5, 10 bars) and trend definitions (weekly context, 12-month momentum, relative strength),
+  and it grows with depth. Without an uptrend there is no bounce. Market-adjusted, the effect is
+  about zero: these are market-wide dips, so the edge is market timing inside uptrends, not stock picking.
+- **The bounce lasts about 10 bars.** Cumulative excess: +0.4σ after 3–5 bars, +0.8σ after 10, flat to 20.
+- **Long-horizon momentum** (12 months, skipping the last month) is strong and orderly on A, also
+  after removing the market: relative strength above +2σ gives fx60 +0.26 [+0.09, +0.41]; at or
+  below −1σ, −0.21 [−0.32, −0.09].
+- **As a trade rule** (buy the dip's close, stop 2 ATR): a 10-bar time exit averages +0.16R with a
+  54% win rate and 8 bars held; a 3-ATR chandelier averages +0.17R with 37% and 17 bars. Random
+  entries in the same uptrends: +0.05R and +0.10R.
+
+### 2.3 Confirmation plan (frozen 10 Nov 2026, before B and DJ were looked at for these effects)
+
+**Candidate rule D ("dip in an uptrend").** Context regime up, and the 5-bar return in risk units
+at or below −1.5 on the first bar of the dip. Buy at that close. Stop: 2 ATR below, as an intrabar
+stop order. Exit: at the close 10 bars later (primary), or a 3-ATR chandelier (alternative). Exit
+also if the context turns down.
+
+| ID | Test on B and on DJ, run once | Counts as confirmed if |
+|---|---|---|
+| C1 | f5 and f10 of rule-D bars minus context-up bars without a dip | Positive on B and DJ, and the interval excludes zero on DJ for f5 or f10. Same sign but not significant on DJ = "partly confirmed" |
+| C2 | Rule D as trades, primary exit: average R, and vs 20 runs of random entries under the same context | Average R above zero and above the random runs (p ≤ 0.10) on B and on DJ |
+| C3 | Long-horizon momentum: 60-bar market-adjusted return for relative strength (12-1) above +1σ vs the rest, and at or below −1σ vs the rest; the same for absolute momentum with the raw 60-bar return | Same signs on B and DJ, significant on at least one |
+| C4 | Dips without an uptrend: market-adjusted 5-bar return vs other no-uptrend bars | Supportive only: not positive |
+
+B covers the same dates as A, so for C1 and C2 it replicates across stocks, not across time. **DJ
+(2007–2013, including 2008) is the independent test.**

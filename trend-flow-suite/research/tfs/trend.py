@@ -96,6 +96,7 @@ class TrendParams:
     trail_atr: float = 3.0
     stop_mode: str = "intrabar"  # "intrabar": stop order (fills at the stop, or the open on a gap);
                                  # "close": exit at the close of a bar that closes below the stop
+    max_bars: int = 0            # time exit: close the trade after this many bars; 0 = off
     tick: float = 0.0            # round stops to this tick size; 0 = no rounding
     warmup: int = 200            # no signals before this many bars (filters still settling)
 
@@ -195,6 +196,8 @@ def simulate_trades(o, h, l, c, atr, d, last_sl, sig, stop, p: TrendParams):
                     reason, px = (2 if level > stop_init else 1), c[t]
                 elif d[t] == -1:
                     reason, px = 3, c[t]
+                elif p.max_bars > 0 and t - entry_bar >= p.max_bars:
+                    reason, px = 4, c[t]
                 else:
                     active = level
                     stop_level[t] = level

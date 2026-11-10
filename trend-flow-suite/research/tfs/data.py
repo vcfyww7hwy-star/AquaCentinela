@@ -99,8 +99,8 @@ def load_ohlcv_dir(path: str | Path, pattern: str = "*.csv", min_bars: int = 700
     out, audit = {}, {"files": 0, "kept": 0, "too_short": 0, "rows": 0, "rows_dropped": 0,
                       "rows_hl_repaired": 0, "zero_volume_rows": 0, "max_abs_log_return": {}}
     for f in sorted(Path(path).rglob(pattern)):
-        if f.name.startswith(skip_prefixes):
-            continue
+        if f.name.startswith(skip_prefixes) or f.name.startswith(".") or "__MACOSX" in f.parts:
+            continue                                  # combined files, hidden files, macOS metadata
         audit["files"] += 1
         d = pd.read_csv(f)
         d.columns = [c.strip().lower() for c in d.columns]
