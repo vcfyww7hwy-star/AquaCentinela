@@ -129,3 +129,36 @@ also if the context turns down.
 
 B covers the same dates as A, so for C1 and C2 it replicates across stocks, not across time. **DJ
 (2007–2013, including 2008) is the independent test.**
+
+### 2.4 Confirmation results (E07) and an added independent set
+
+**Result on the planned sets.** Rule D replicated on B (other stocks, same years) and was **not
+confirmed** on DJ (2007–2013):
+
+| Test | B | DJ |
+|---|---|---|
+| C1 f5 / f10 vs context-up bars without a dip | +0.18 [+0.03, +0.33] / +0.23 [+0.08, +0.37] | +0.06 [−0.16, +0.27] / −0.12 [−0.32, +0.11] |
+| C2 average R, 10-bar exit (random entries) | +0.11 [−0.08, +0.28] (random +0.05, p = 0.05) | −0.04 [−0.24, +0.19] (random +0.02, p = 0.95) |
+| C3 relative strength ≤ −1σ, fx60 | −0.24 [−0.37, −0.11] | +0.17 [−0.00, +0.33] |
+| C3 relative strength > +1σ, fx60 | +0.05 [−0.06, +0.16] | +0.05 [−0.11, +0.20] |
+
+By the frozen criteria C1, C2 and C3 are **not confirmed**. DJ has only 31 stocks and 333 trades,
+so its intervals are wide: it fails to confirm, it does not refute.
+
+**Added set LH (decided 10 Nov 2026 after the DJ result, before any outcome on LH was computed).**
+The dip effect is market-wide, so the question needs more independent *years*, not more stocks
+from the same years. A public mirror of the Kaggle "Huge Stock Market Dataset" (B. Marjanovic;
+repo `masaok/kaggle-boris-huge-stock-market-dataset`) holds daily data back to each listing date.
+
+- Universe: the same S&P 500 tickers as SP5 (503 found).
+- Period: 2 Jan 1999 – 7 Feb 2013. This shares no dates with SP5 and holds two bear markets.
+- Tests: the frozen C1–C4, rule unchanged, plus the pre-registered Q1–Q7 of E05 as a further check.
+- Extra caveat: the universe is "members in 2018, traced back", which adds look-ahead in stock
+  selection on top of survivorship. Average returns are overstated; signal-vs-control differences
+  are affected much less. Prices here are also dividend-adjusted.
+
+How the outcome will be used:
+
+- Rule D becomes the default entry only if C1 and C2 hold on LH by the same criteria as in 2.3.
+- Otherwise it ships as an *unconfirmed candidate*, labelled as such, and no setup is presented
+  as validated.
