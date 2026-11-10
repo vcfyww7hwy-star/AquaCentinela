@@ -1,6 +1,6 @@
 //@version=6
 // Trend & Setups v2 — trend-flow-suite (price overlay)
-// Rebuilt from tests on about 1.7 million stock-days, 1999–2018 (docs/06_validation_lite.md):
+// Rebuilt from tests on about 1.6 million stock-days, 1999–2018 (docs/06_validation_lite.md):
 //   Trend    The LONG-TERM (higher-timeframe) trend is the main readout. It did not predict returns, but standing
 //            aside while it is Down cut portfolio drawdowns by a third or more at the same risk-adjusted return.
 //            The chart's own trend state is shown for information only.

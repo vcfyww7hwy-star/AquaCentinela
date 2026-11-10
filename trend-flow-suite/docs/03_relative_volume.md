@@ -7,7 +7,7 @@
 ## Why it shrank
 
 Volume Flow v2 showed flow lines, an accumulation / distribution tint, climax, absorption and
-divergence marks. Tested on about 1.7 million stock-days (E05, E08):
+divergence marks. Tested on about 1.6 million stock-days (E05, E08):
 
 | Signal | 10-bar forward return vs control (risk units), sets A / B / DJ / LH |
 |---|---|

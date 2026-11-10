@@ -218,7 +218,7 @@ single stocks. Position decided at the close, 5 bp per switch, cash earns nothin
 
 ### 2.7 What the evidence supports, and the design decisions
 
-Across four sets and about 1.7 million stock-days (1999–2018, daily bars, large US stocks):
+Across four sets and about 1.6 million stock-days (1999–2018, daily bars, large US stocks):
 
 1. **No rule tested has a confirmed, tradable directional edge.** That includes the trend state,
    pullback, breakout and reversal entries, every filter, and every volume signal.

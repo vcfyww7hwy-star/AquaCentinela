@@ -8,7 +8,7 @@
 ## 1. What changed from v1, and why
 
 v1 assumed that a trend state, pullback and breakout entries, and a few filters would give an edge.
-Tested on about 1.7 million stock-days (1999–2018), none of them did. v2 keeps what the evidence
+Tested on about 1.6 million stock-days (1999–2018), none of them did. v2 keeps what the evidence
 supports and labels the rest.
 
 | v1 | v2 | Evidence |

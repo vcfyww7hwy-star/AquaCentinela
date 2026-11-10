@@ -19,7 +19,7 @@ research/                        Python twins of every calculation, tests, exper
 | R | Research toolkit: Pine-twin maths, backtests, overfitting statistics | Built; 94 tests pass |
 | 1 | Volume pane | **Rebuilt as Relative Volume** after E05/E08 (v1 "Volume Flow v2" compiled in TradingView on 9 Nov; the rebuild has not been compiled) |
 | 2–3 | Trend & Setups and its strategy version | **Rebuilt as v2** after E05–E09; compile check pending |
-| 4 | Validation on real stocks | **Done on daily bars** (E05–E09: four sets, about 1.7 million stock-days, 1999–2018). Result: no confirmed trading edge; one small confirmed regularity; the long-term trend works as a risk switch. See `06_validation_lite.md` |
+| 4 | Validation on real stocks | **Done on daily bars** (E05–E09: four sets, about 1.6 million stock-days, 1999–2018). Result: no confirmed trading edge; one small confirmed regularity; the long-term trend works as a risk switch. See `06_validation_lite.md` |
 | 5 | Playbook | Rewritten for v2 (`05_playbook.md`) |
 
 ## What is still open

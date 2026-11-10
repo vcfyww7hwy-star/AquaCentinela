@@ -3,7 +3,7 @@
 A personal indicator suite for trading US stocks on 1h, 4h, daily and weekly charts (TradingView, Pine v6).
 It comes with a Python research harness that tests every rule against out-of-sample data and controls for overfitting.
 
-**Status (10 Nov 2026):** v2. The suite was rebuilt after testing its first version on about 1.7 million
+**Status (10 Nov 2026):** v2. The suite was rebuilt after testing its first version on about 1.6 million
 stock-days of real data. The honest summary: no rule here has a confirmed trading edge; the long-term
 trend works as a risk switch; dips inside long-term uptrends bounce briefly. The three changed
 TradingView scripts still need a compile check. See [docs/06_validation_lite.md](docs/06_validation_lite.md).

@@ -1,6 +1,6 @@
 //@version=6
 // Relative Volume — trend-flow-suite (lower pane). Replaces "Volume Flow v2".
-// Tests on about 1.7 million stock-days (docs/06_validation_lite.md) found NO directional information in volume
+// Tests on about 1.6 million stock-days (docs/06_validation_lite.md) found NO directional information in volume
 // flow, accumulation/distribution, climaxes or divergences, so those are gone. What remains is descriptive:
 //   Columns   volume relative to what is normal for this bar (per time-of-day slot on intraday charts);
 //             1.0 = normal. Colour = direction of the bar's close-to-close move.
