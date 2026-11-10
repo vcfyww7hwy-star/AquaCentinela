@@ -1,0 +1,627 @@
+{
+ "LH_1999_2013": {
+  "stocks": 456,
+  "per_stock": {
+   "ctx_not_down": {
+    "pct_stocks_higher_sharpe": 22.1,
+    "pct_stocks_smaller_max_dd": 64.7,
+    "median_sharpe": 0.36,
+    "median_max_dd_pct": -57.2,
+    "median_cagr_pct": 5.82
+   },
+   "ctx_up": {
+    "pct_stocks_higher_sharpe": 12.5,
+    "pct_stocks_smaller_max_dd": 93.4,
+    "median_sharpe": 0.17,
+    "median_max_dd_pct": -36.3,
+    "median_cagr_pct": 1.23
+   },
+   "chart_not_down": {
+    "pct_stocks_higher_sharpe": 29.4,
+    "pct_stocks_smaller_max_dd": 66.2,
+    "median_sharpe": 0.33,
+    "median_max_dd_pct": -60.2,
+    "median_cagr_pct": 5.03
+   },
+   "market_not_down": {
+    "pct_stocks_higher_sharpe": 27.9,
+    "pct_stocks_smaller_max_dd": 74.8,
+    "median_sharpe": 0.34,
+    "median_max_dd_pct": -61.2,
+    "median_cagr_pct": 5.45
+   },
+   "sma200": {
+    "pct_stocks_higher_sharpe": 25.0,
+    "pct_stocks_smaller_max_dd": 80.9,
+    "median_sharpe": 0.26,
+    "median_max_dd_pct": -48.5,
+    "median_cagr_pct": 3.2
+   },
+   "hold": {
+    "median_sharpe": 0.4,
+    "median_max_dd_pct": -68.5,
+    "median_cagr_pct": 7.39
+   }
+  },
+  "equal_weight_portfolio": {
+   "hold": {
+    "cagr_pct": 17.67,
+    "vol_pct": 24.7,
+    "sharpe": 0.78,
+    "max_dd_pct": -53.0,
+    "exposure_pct": 100.0
+   },
+   "ctx_not_down": {
+    "cagr_pct": 14.18,
+    "vol_pct": 18.6,
+    "sharpe": 0.8,
+    "max_dd_pct": -32.7,
+    "exposure_pct": 100.0
+   },
+   "ctx_up": {
+    "cagr_pct": 6.63,
+    "vol_pct": 10.9,
+    "sharpe": 0.64,
+    "max_dd_pct": -12.0,
+    "exposure_pct": 99.0
+   },
+   "chart_not_down": {
+    "cagr_pct": 8.62,
+    "vol_pct": 15.1,
+    "sharpe": 0.62,
+    "max_dd_pct": -39.9,
+    "exposure_pct": 100.0
+   },
+   "market_not_down": {
+    "cagr_pct": 12.5,
+    "vol_pct": 18.7,
+    "sharpe": 0.72,
+    "max_dd_pct": -50.8,
+    "exposure_pct": 84.0
+   },
+   "sma200": {
+    "cagr_pct": 5.42,
+    "vol_pct": 9.9,
+    "sharpe": 0.58,
+    "max_dd_pct": -24.0,
+    "exposure_pct": 100.0
+   }
+  },
+  "portfolio_by_period": {
+   "2000-2003": {
+    "hold": {
+     "cagr_pct": 15.03,
+     "vol_pct": 20.7,
+     "sharpe": 0.78,
+     "max_dd_pct": -28.9,
+     "exposure_pct": 100.0
+    },
+    "ctx_not_down": {
+     "cagr_pct": 9.37,
+     "vol_pct": 15.8,
+     "sharpe": 0.65,
+     "max_dd_pct": -21.0,
+     "exposure_pct": 100.0
+    },
+    "ctx_up": {
+     "cagr_pct": 0.8,
+     "vol_pct": 3.7,
+     "sharpe": 0.24,
+     "max_dd_pct": -6.4,
+     "exposure_pct": 100.0
+    },
+    "chart_not_down": {
+     "cagr_pct": 7.01,
+     "vol_pct": 14.3,
+     "sharpe": 0.55,
+     "max_dd_pct": -23.7,
+     "exposure_pct": 100.0
+    },
+    "market_not_down": {
+     "cagr_pct": 8.96,
+     "vol_pct": 13.6,
+     "sharpe": 0.7,
+     "max_dd_pct": -21.1,
+     "exposure_pct": 72.0
+    },
+    "sma200": {
+     "cagr_pct": 4.39,
+     "vol_pct": 9.2,
+     "sharpe": 0.51,
+     "max_dd_pct": -19.1,
+     "exposure_pct": 100.0
+    }
+   },
+   "2004-2007": {
+    "hold": {
+     "cagr_pct": 19.82,
+     "vol_pct": 17.3,
+     "sharpe": 1.13,
+     "max_dd_pct": -9.6,
+     "exposure_pct": 100.0
+    },
+    "ctx_not_down": {
+     "cagr_pct": 19.55,
+     "vol_pct": 16.9,
+     "sharpe": 1.14,
+     "max_dd_pct": -9.1,
+     "exposure_pct": 100.0
+    },
+    "ctx_up": {
+     "cagr_pct": 13.08,
+     "vol_pct": 13.7,
+     "sharpe": 0.96,
+     "max_dd_pct": -6.4,
+     "exposure_pct": 100.0
+    },
+    "chart_not_down": {
+     "cagr_pct": 9.82,
+     "vol_pct": 10.3,
+     "sharpe": 0.96,
+     "max_dd_pct": -7.6,
+     "exposure_pct": 100.0
+    },
+    "market_not_down": {
+     "cagr_pct": 17.27,
+     "vol_pct": 17.2,
+     "sharpe": 1.01,
+     "max_dd_pct": -11.4,
+     "exposure_pct": 98.0
+    },
+    "sma200": {
+     "cagr_pct": 6.98,
+     "vol_pct": 8.3,
+     "sharpe": 0.85,
+     "max_dd_pct": -6.7,
+     "exposure_pct": 100.0
+    }
+   },
+   "2008-2009": {
+    "hold": {
+     "cagr_pct": 2.46,
+     "vol_pct": 40.1,
+     "sharpe": 0.26,
+     "max_dd_pct": -51.4,
+     "exposure_pct": 100.0
+    },
+    "ctx_not_down": {
+     "cagr_pct": -5.32,
+     "vol_pct": 18.2,
+     "sharpe": -0.21,
+     "max_dd_pct": -29.8,
+     "exposure_pct": 100.0
+    },
+    "ctx_up": {
+     "cagr_pct": -3.45,
+     "vol_pct": 3.9,
+     "sharpe": -0.89,
+     "max_dd_pct": -8.2,
+     "exposure_pct": 91.0
+    },
+    "chart_not_down": {
+     "cagr_pct": 0.97,
+     "vol_pct": 22.1,
+     "sharpe": 0.15,
+     "max_dd_pct": -37.1,
+     "exposure_pct": 100.0
+    },
+    "market_not_down": {
+     "cagr_pct": -4.79,
+     "vol_pct": 24.8,
+     "sharpe": -0.07,
+     "max_dd_pct": -47.1,
+     "exposure_pct": 67.0
+    },
+    "sma200": {
+     "cagr_pct": 0.36,
+     "vol_pct": 11.3,
+     "sharpe": 0.09,
+     "max_dd_pct": -21.6,
+     "exposure_pct": 100.0
+    }
+   },
+   "2010-2013": {
+    "hold": {
+     "cagr_pct": 28.91,
+     "vol_pct": 23.8,
+     "sharpe": 1.18,
+     "max_dd_pct": -21.3,
+     "exposure_pct": 100.0
+    },
+    "ctx_not_down": {
+     "cagr_pct": 27.36,
+     "vol_pct": 23.0,
+     "sharpe": 1.16,
+     "max_dd_pct": -20.2,
+     "exposure_pct": 100.0
+    },
+    "ctx_up": {
+     "cagr_pct": 12.13,
+     "vol_pct": 14.6,
+     "sharpe": 0.85,
+     "max_dd_pct": -12.0,
+     "exposure_pct": 100.0
+    },
+    "chart_not_down": {
+     "cagr_pct": 14.15,
+     "vol_pct": 15.6,
+     "sharpe": 0.93,
+     "max_dd_pct": -16.5,
+     "exposure_pct": 100.0
+    },
+    "market_not_down": {
+     "cagr_pct": 23.02,
+     "vol_pct": 20.6,
+     "sharpe": 1.1,
+     "max_dd_pct": -23.0,
+     "exposure_pct": 90.0
+    },
+    "sma200": {
+     "cagr_pct": 7.95,
+     "vol_pct": 11.7,
+     "sharpe": 0.71,
+     "max_dd_pct": -12.5,
+     "exposure_pct": 100.0
+    }
+   }
+  }
+ },
+ "SP5_2013_2018": {
+  "stocks": 489,
+  "per_stock": {
+   "ctx_not_down": {
+    "pct_stocks_higher_sharpe": 7.8,
+    "pct_stocks_smaller_max_dd": 28.2,
+    "median_sharpe": 0.41,
+    "median_max_dd_pct": -30.8,
+    "median_cagr_pct": 6.59
+   },
+   "ctx_up": {
+    "pct_stocks_higher_sharpe": 16.4,
+    "pct_stocks_smaller_max_dd": 71.0,
+    "median_sharpe": 0.18,
+    "median_max_dd_pct": -20.7,
+    "median_cagr_pct": 1.45
+   },
+   "chart_not_down": {
+    "pct_stocks_higher_sharpe": 23.1,
+    "pct_stocks_smaller_max_dd": 50.1,
+    "median_sharpe": 0.34,
+    "median_max_dd_pct": -30.1,
+    "median_cagr_pct": 4.72
+   },
+   "market_not_down": {
+    "pct_stocks_higher_sharpe": 11.7,
+    "pct_stocks_smaller_max_dd": 37.4,
+    "median_sharpe": 0.28,
+    "median_max_dd_pct": -31.9,
+    "median_cagr_pct": 3.53
+   },
+   "sma200": {
+    "pct_stocks_higher_sharpe": 22.9,
+    "pct_stocks_smaller_max_dd": 64.8,
+    "median_sharpe": 0.26,
+    "median_max_dd_pct": -26.2,
+    "median_cagr_pct": 2.87
+   },
+   "hold": {
+    "median_sharpe": 0.47,
+    "median_max_dd_pct": -32.0,
+    "median_cagr_pct": 8.22
+   }
+  },
+  "equal_weight_portfolio": {
+   "hold": {
+    "cagr_pct": 9.91,
+    "vol_pct": 13.1,
+    "sharpe": 0.78,
+    "max_dd_pct": -16.5,
+    "exposure_pct": 100.0
+   },
+   "ctx_not_down": {
+    "cagr_pct": 8.45,
+    "vol_pct": 11.2,
+    "sharpe": 0.78,
+    "max_dd_pct": -11.8,
+    "exposure_pct": 100.0
+   },
+   "ctx_up": {
+    "cagr_pct": 4.29,
+    "vol_pct": 5.9,
+    "sharpe": 0.75,
+    "max_dd_pct": -5.4,
+    "exposure_pct": 100.0
+   },
+   "chart_not_down": {
+    "cagr_pct": 6.53,
+    "vol_pct": 10.0,
+    "sharpe": 0.68,
+    "max_dd_pct": -12.4,
+    "exposure_pct": 100.0
+   },
+   "market_not_down": {
+    "cagr_pct": 4.75,
+    "vol_pct": 11.4,
+    "sharpe": 0.46,
+    "max_dd_pct": -19.2,
+    "exposure_pct": 92.0
+   },
+   "sma200": {
+    "cagr_pct": 5.01,
+    "vol_pct": 7.3,
+    "sharpe": 0.71,
+    "max_dd_pct": -8.1,
+    "exposure_pct": 100.0
+   }
+  },
+  "portfolio_by_period": {
+   "2014-2015": {
+    "hold": {
+     "cagr_pct": 2.61,
+     "vol_pct": 15.0,
+     "sharpe": 0.25,
+     "max_dd_pct": -12.1,
+     "exposure_pct": 100.0
+    },
+    "ctx_not_down": {
+     "cagr_pct": 4.55,
+     "vol_pct": 13.3,
+     "sharpe": 0.4,
+     "max_dd_pct": -9.7,
+     "exposure_pct": 100.0
+    },
+    "ctx_up": {
+     "cagr_pct": 3.56,
+     "vol_pct": 7.7,
+     "sharpe": 0.5,
+     "max_dd_pct": -5.2,
+     "exposure_pct": 100.0
+    },
+    "chart_not_down": {
+     "cagr_pct": -0.02,
+     "vol_pct": 11.0,
+     "sharpe": 0.05,
+     "max_dd_pct": -8.0,
+     "exposure_pct": 100.0
+    },
+    "market_not_down": {
+     "cagr_pct": -6.2,
+     "vol_pct": 12.8,
+     "sharpe": -0.44,
+     "max_dd_pct": -13.3,
+     "exposure_pct": 88.0
+    },
+    "sma200": {
+     "cagr_pct": 0.91,
+     "vol_pct": 7.9,
+     "sharpe": 0.15,
+     "max_dd_pct": -5.9,
+     "exposure_pct": 100.0
+    }
+   },
+   "2016-2018": {
+    "hold": {
+     "cagr_pct": 14.73,
+     "vol_pct": 11.8,
+     "sharpe": 1.22,
+     "max_dd_pct": -10.5,
+     "exposure_pct": 100.0
+    },
+    "ctx_not_down": {
+     "cagr_pct": 10.95,
+     "vol_pct": 9.6,
+     "sharpe": 1.13,
+     "max_dd_pct": -7.8,
+     "exposure_pct": 100.0
+    },
+    "ctx_up": {
+     "cagr_pct": 4.74,
+     "vol_pct": 4.4,
+     "sharpe": 1.08,
+     "max_dd_pct": -4.6,
+     "exposure_pct": 100.0
+    },
+    "chart_not_down": {
+     "cagr_pct": 10.83,
+     "vol_pct": 9.3,
+     "sharpe": 1.15,
+     "max_dd_pct": -7.0,
+     "exposure_pct": 100.0
+    },
+    "market_not_down": {
+     "cagr_pct": 12.22,
+     "vol_pct": 10.5,
+     "sharpe": 1.15,
+     "max_dd_pct": -8.0,
+     "exposure_pct": 95.0
+    },
+    "sma200": {
+     "cagr_pct": 7.66,
+     "vol_pct": 6.9,
+     "sharpe": 1.11,
+     "max_dd_pct": -6.2,
+     "exposure_pct": 100.0
+    }
+   }
+  }
+ },
+ "DJ_2006_2013": {
+  "stocks": 31,
+  "per_stock": {
+   "ctx_not_down": {
+    "pct_stocks_higher_sharpe": 32.3,
+    "pct_stocks_smaller_max_dd": 77.4,
+    "median_sharpe": 0.3,
+    "median_max_dd_pct": -43.9,
+    "median_cagr_pct": 4.57
+   },
+   "ctx_up": {
+    "pct_stocks_higher_sharpe": 12.9,
+    "pct_stocks_smaller_max_dd": 96.8,
+    "median_sharpe": 0.0,
+    "median_max_dd_pct": -24.9,
+    "median_cagr_pct": 0.0
+   },
+   "chart_not_down": {
+    "pct_stocks_higher_sharpe": 35.5,
+    "pct_stocks_smaller_max_dd": 64.5,
+    "median_sharpe": 0.18,
+    "median_max_dd_pct": -50.3,
+    "median_cagr_pct": 1.57
+   },
+   "market_not_down": {
+    "pct_stocks_higher_sharpe": 16.1,
+    "pct_stocks_smaller_max_dd": 71.0,
+    "median_sharpe": 0.15,
+    "median_max_dd_pct": -51.6,
+    "median_cagr_pct": 0.08
+   },
+   "sma200": {
+    "pct_stocks_higher_sharpe": 38.7,
+    "pct_stocks_smaller_max_dd": 90.3,
+    "median_sharpe": 0.17,
+    "median_max_dd_pct": -33.0,
+    "median_cagr_pct": 1.4
+   },
+   "hold": {
+    "median_sharpe": 0.28,
+    "median_max_dd_pct": -56.4,
+    "median_cagr_pct": 2.99
+   }
+  },
+  "equal_weight_portfolio": {
+   "hold": {
+    "cagr_pct": 7.19,
+    "vol_pct": 24.6,
+    "sharpe": 0.4,
+    "max_dd_pct": -48.3,
+    "exposure_pct": 100.0
+   },
+   "ctx_not_down": {
+    "cagr_pct": 6.14,
+    "vol_pct": 17.0,
+    "sharpe": 0.44,
+    "max_dd_pct": -29.2,
+    "exposure_pct": 100.0
+   },
+   "ctx_up": {
+    "cagr_pct": 0.4,
+    "vol_pct": 6.3,
+    "sharpe": 0.09,
+    "max_dd_pct": -14.2,
+    "exposure_pct": 87.0
+   },
+   "chart_not_down": {
+    "cagr_pct": 4.84,
+    "vol_pct": 15.5,
+    "sharpe": 0.38,
+    "max_dd_pct": -40.4,
+    "exposure_pct": 100.0
+   },
+   "market_not_down": {
+    "cagr_pct": 2.26,
+    "vol_pct": 17.0,
+    "sharpe": 0.22,
+    "max_dd_pct": -45.6,
+    "exposure_pct": 83.0
+   },
+   "sma200": {
+    "cagr_pct": 2.88,
+    "vol_pct": 9.8,
+    "sharpe": 0.34,
+    "max_dd_pct": -23.2,
+    "exposure_pct": 97.0
+   }
+  },
+  "portfolio_by_period": {
+   "2007-2009": {
+    "hold": {
+     "cagr_pct": 0.34,
+     "vol_pct": 32.0,
+     "sharpe": 0.17,
+     "max_dd_pct": -48.3,
+     "exposure_pct": 100.0
+    },
+    "ctx_not_down": {
+     "cagr_pct": -1.01,
+     "vol_pct": 18.0,
+     "sharpe": 0.03,
+     "max_dd_pct": -29.2,
+     "exposure_pct": 100.0
+    },
+    "ctx_up": {
+     "cagr_pct": -2.18,
+     "vol_pct": 5.9,
+     "sharpe": -0.34,
+     "max_dd_pct": -12.2,
+     "exposure_pct": 69.0
+    },
+    "chart_not_down": {
+     "cagr_pct": -0.13,
+     "vol_pct": 18.0,
+     "sharpe": 0.08,
+     "max_dd_pct": -40.4,
+     "exposure_pct": 100.0
+    },
+    "market_not_down": {
+     "cagr_pct": -4.22,
+     "vol_pct": 20.3,
+     "sharpe": -0.11,
+     "max_dd_pct": -45.6,
+     "exposure_pct": 72.0
+    },
+    "sma200": {
+     "cagr_pct": 1.47,
+     "vol_pct": 9.7,
+     "sharpe": 0.2,
+     "max_dd_pct": -23.2,
+     "exposure_pct": 93.0
+    }
+   },
+   "2010-2013": {
+    "hold": {
+     "cagr_pct": 12.84,
+     "vol_pct": 16.9,
+     "sharpe": 0.8,
+     "max_dd_pct": -15.7,
+     "exposure_pct": 100.0
+    },
+    "ctx_not_down": {
+     "cagr_pct": 12.05,
+     "vol_pct": 16.2,
+     "sharpe": 0.78,
+     "max_dd_pct": -15.1,
+     "exposure_pct": 100.0
+    },
+    "ctx_up": {
+     "cagr_pct": 2.46,
+     "vol_pct": 6.6,
+     "sharpe": 0.4,
+     "max_dd_pct": -8.6,
+     "exposure_pct": 100.0
+    },
+    "chart_not_down": {
+     "cagr_pct": 8.88,
+     "vol_pct": 13.3,
+     "sharpe": 0.71,
+     "max_dd_pct": -13.6,
+     "exposure_pct": 100.0
+    },
+    "market_not_down": {
+     "cagr_pct": 7.6,
+     "vol_pct": 13.9,
+     "sharpe": 0.6,
+     "max_dd_pct": -21.7,
+     "exposure_pct": 90.0
+    },
+    "sma200": {
+     "cagr_pct": 3.99,
+     "vol_pct": 9.8,
+     "sharpe": 0.45,
+     "max_dd_pct": -11.7,
+     "exposure_pct": 100.0
+    }
+   }
+  }
+ }
+}

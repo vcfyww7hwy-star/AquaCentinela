@@ -1,63 +1,61 @@
-# Playbook: using the suite (draft, Phase 5)
+# Playbook: using the suite (v2)
 
-This is a draft until Phase 4 has validated the setups. Until then, the rules below are a
-disciplined way to *use* the tools, not proof that they make money. Trade small.
+Read this with the evidence in mind (`06_validation_lite.md`): no rule in this suite has a confirmed
+trading edge. The tools organise three things that the tests do support: staying out when the
+long-term trend is down, buying weakness instead of strength inside uptrends, and capping the loss
+on every trade. Trade small, and keep records.
 
 ## Chart set-up (once)
 
-1. Use a US stock or ETF chart with regular trading hours only (ETH off).
-2. Add **Trend & Setups** (overlay) and **Volume Flow v2** (pane). When you paste a script into a new
-   Pine Editor tab, select all and delete TradingView's starter template first; otherwise you get
-   error CE10243 (two declaration statements).
-3. In Trend & Setups → Risk, set your **Account size** and **Risk per trade %** (start with 0.5–1%).
-4. Optional: if your plan allows custom timeframes, use 65-minute bars instead of 1h and
-   195-minute bars instead of 4h, which gives equal-length bars.
-5. Alerts:
-   - Create one alert per symbol with the condition **Trend & Setups → "Any alert() function call"**.
-     It sends the entry, stop and size, or the exit and its R.
-   - Optionally, add **Volume Flow v2 → VF2 bearish divergence** for trade management.
+1. Use a US stock or ETF chart with regular trading hours only (extended hours off).
+2. Add **Trend & Setups v2** (on the price chart) and **Relative Volume** (pane). When you paste a
+   script into a new Pine Editor tab, select all and delete TradingView's starter template first;
+   otherwise you get error CE10243 (two declaration statements).
+3. In Trend & Setups v2 → Risk and exits, set **Account size** and **Risk per trade (%)**. Start
+   with 0.5–1%. Leave **Largest position** at 25% or lower.
+4. Alerts, one per symbol: condition **Trend & Setups v2 → "Any alert() function call"** sends each
+   entry (with stop and size) and each exit. Add **"T&S2 long-term trend turned down"** for the
+   stocks you hold.
 
-## Timeframe roles
+Only the Daily chart with the Weekly long-term trend is tested. On 1h, 4h and Weekly charts the
+same logic runs, but nothing there is validated.
 
-| You trade on | Check first (context) | Use for |
+## Reading the chart
+
+| Element | Meaning | What to do with it |
 |---|---|---|
-| Weekly | Monthly | Position trades (months) |
-| Daily | Weekly | Swing trades (2–8 weeks) |
-| 4h / 195-min | Daily | Shorter swings (3–10 days) |
-| 1h / 65-min | 4h or Daily | Entries for daily setups; short trades (1–3 days) |
+| Baseline colour and the first table row | Long-term trend: Up (blue), Neutral (grey), Down (orange) | **Down = stand aside.** No new longs; consider closing. This is the best-supported rule in the suite |
+| Shaded background | Long-term trend is Down | Same |
+| "This chart", 1h / 4h / Daily / Weekly rows | Trend state per timeframe | Information. It did not predict returns in tests |
+| Market, Strength vs market | The benchmark's trend; the stock relative to it | Information |
+| 5-bar move | The last five bars' return in risk units | At −1.5σ or lower inside a long-term uptrend, the D setup fires |
+| Green **D** | Dip in a long-term uptrend, bought at this close | Candidate entry. Label shows entry, stop, 1R and size |
+| Pink line | The stop order level for the tracked trade | Move your stop order to it after each bar. It only goes up |
+| Pink **X** | Exit: stop, trailing stop, long-term trend turned down, or time exit | Close the trade |
+| Small green dot | A setup fired while a trade was already being tracked | Information |
+| "If I buy this close" | Stop (2 ATR) and size for an entry on the current bar | Use it for entries you choose yourself |
+| Relative Volume columns | Today's volume ÷ normal for this bar | Context. Above 2× is unusual |
+| Green **A** in the volume pane | Absorption at lows | Weak support; mild confirmation for a dip, nothing more |
 
-The table on the chart shows all four regimes at once. **Best conditions:** this chart and its
-context both *Up* or *Strong up*, and relative strength vs SPY *Up*.
+## Before taking a D signal
 
-## Before entering (checklist)
-
-1. **Trend:** the table shows *Up* (S1), or not *Down* (S2). For S3, a confirmed reversal from a downtrend.
-2. **Context:** not *Down*.
-3. **Relative strength vs SPY:** not *Down*. Leaders beat laggards.
-4. **Volume Flow v2:**
-   - slow line above 0, or rising toward it;
-   - no purple distribution tint;
-   - no buying climax in the last few bars.
-5. **Extension:** below about +2.5 ATR in the table. Don't chase extended moves.
-6. **Earnings:** no report before your expected exit. If there is one, skip or halve the size.
-7. **Take the label's numbers:** entry at the close, stop as shown, size as shown. Don't move the stop down.
+1. Long-term trend is **Up** (the signal requires it).
+2. The move is a dip, not a collapse: check the news. A dip on an earnings miss or a guidance cut is
+   a different thing from a market-wide wobble.
+3. "Next earnings" in the table is not within the next few days, or you accept the gap risk.
+4. Use the label's numbers. Place the stop as a real order.
+5. You already hold fewer positions than your limit, and they are not all the same sector: dips
+   arrive together, and so do the losses when a dip keeps going (2001, 2002, 2008).
 
 ## Managing the trade
 
-- **The pink line is your stop.** It starts at the initial stop and trails 3 ATR below the highest
-  high. Exit on a close below it, or when the trend turns *Down* (an X label appears).
-- **Volume Flow v2 warnings** (buying climax, absorption at the top, bearish "D", distribution tint):
-  consider taking partial profit or tightening to the last swing low. They are not reasons to short.
-- **A triangle above the bars** means the last swing low broke while the trend was still up. Tighten
-  the stop to just under the new swing structure, or exit if it is a daily-chart break on a 1h trade.
+- After each bar, move the stop order up to the pink line.
+- Exit on the X. If the long-term trend turns Down, exit at that close.
+- The tested bounce is strongest in the first five bars. If the trade has gone nowhere after two
+  weeks, the reason you entered has expired; the optional time exit automates this.
 
-## Record-keeping (so Phase 4 can learn from your trades)
+## Records
 
-Log every signal you take *and* every signal you skip, with the reason:
-- date, symbol, timeframe, setup;
-- entry, stop, exit;
-- R result;
-- whether the VF2 or context filters disagreed.
-
-Twenty to thirty logged trades already tell us more about these rules in your hands than any
-single backtest.
+Log every signal you take and every one you skip: date, symbol, setup, entry, stop, exit, R, and
+why you skipped. Thirty logged trades will say more about these rules in your hands than any
+backtest in this repository.

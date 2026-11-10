@@ -1,4 +1,8 @@
-"""E04 - Trend & Setups: calibration and smoke test (Nov 2026). NOT a validation.
+"""E04 - Trend & Setups v1: calibration and smoke test (Nov 2026). NOT a validation.
+
+HISTORICAL: results/e04_trend_setups_smoke.json was produced with engine v1 (commit e13573e).
+The engine has since changed (docs/06_validation_lite.md); this script is kept as a record and
+no longer reproduces that file.
 
 Checks that the engine behaves as designed on the offline daily data (S&P 500, NASDAQ, GOOG):
   1. calibration: trend score ~ N(0,1) on the same returns with their order shuffled (no trend);

@@ -192,15 +192,24 @@ def test_relative_weights_remove_spurious_asymmetry_from_time_of_day_drift():
     assert abs(np.nanmean(f["asym"].to_numpy()[late])) < 0.006
 
 
-def test_parity_tool_passes_on_identical_values_and_flags_a_perturbation(tmp_path):
+@pytest.mark.parametrize("script", ["volume", "trend"])
+def test_parity_tool_passes_on_identical_values_and_flags_a_perturbation(script):
+    from tfs.trend import TrendParams, trend_setups, weekly_context_dir
     from tools.parity_check import SERIES, compare
-    df = synthetic_daily(n=1300, seed=9)
-    ours = volume_flow_v2(df)
+    df = synthetic_daily(n=1500, seed=9)
     tv = df.copy()
-    for key, col in SERIES.items():
-        tv[f"Volume Flow v2: {key}"] = ours[col]   # mimic TradingView's "<script>: <plot>" headers
-    ok, _ = compare(tv, intraday=False, warmup=600, rtol=1e-6, atol=1e-9)
-    assert ok
-    tv["Volume Flow v2: dbg_f_slow"] = tv["Volume Flow v2: dbg_f_slow"] * 1.001
-    ok, rows = compare(tv, intraday=False, warmup=600, rtol=1e-6, atol=1e-9)
-    assert not ok and [r for r in rows if r["series"] == "dbg_f_slow"][0]["status"] == "MISMATCH"
+    if script == "volume":
+        ours, name, key = volume_flow_v2(df), "Relative Volume", "dbg_rvol"
+    else:
+        ctx = weekly_context_dir(df)
+        ours, _ = trend_setups(df, p=TrendParams(tick=0.01), htf_dir=ctx)
+        tv["Trend & Setups v2: dbg_ctx_dir"] = ctx
+        name, key = "Trend & Setups v2", "dbg_ts"
+        assert (ours["entry"] > 0).sum() > 0                      # the comparison covers real trades
+    for k, col in SERIES[script].items():
+        tv[f"{name}: {k}"] = ours[col].astype(float)              # mimic TradingView's "<script>: <plot>" headers
+    ok, rows = compare(tv, script, intraday=False, warmup=600, rtol=1e-6, atol=1e-9, tick=0.01)
+    assert ok and all(r["status"] == "OK" for r in rows)
+    tv[f"{name}: {key}"] = tv[f"{name}: {key}"] * 1.001
+    ok, rows = compare(tv, script, intraday=False, warmup=600, rtol=1e-6, atol=1e-9, tick=0.01)
+    assert not ok and [r for r in rows if r["series"] == key][0]["status"] == "MISMATCH"

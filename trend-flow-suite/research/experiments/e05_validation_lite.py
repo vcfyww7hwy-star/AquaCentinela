@@ -33,7 +33,9 @@ EVAL_START = 400
 HORIZONS = (5, 10, 20)
 N_BOOT = 2000
 N_RANDOM = 20
-RAW = TrendParams(use_ctx=False, use_rs=False, use_mkt=False, use_pull_vol=False, warmup=EVAL_START)
+# the v1/v2 rules under test in E05 (the engine's defaults changed after this experiment)
+RAW = TrendParams(s1_mode="swing", use_s1=True, use_s2=True, use_s3=True, use_ctx=False, use_rs=False,
+                  use_mkt=False, use_pull_vol=False, warmup=EVAL_START)
 METRICS = ("fz5", "fz10", "fz20", "fzx10")
 _BENCH = None
 

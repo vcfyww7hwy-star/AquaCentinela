@@ -162,3 +162,86 @@ How the outcome will be used:
 - Rule D becomes the default entry only if C1 and C2 hold on LH by the same criteria as in 2.3.
 - Otherwise it ships as an *unconfirmed candidate*, labelled as such, and no setup is presented
   as validated.
+
+### 2.5 Results on the added long-history set (E08)
+
+LH: 459 stocks, 2 Jan 1999 – 7 Feb 2013, 1.12 million stock-days, 150 months. Full output:
+`research/results/e08_long_history.json`.
+
+**Frozen confirmation tests**
+
+| Test | LH result | Verdict |
+|---|---|---|
+| C1 dip in an uptrend, forward returns vs uptrend bars without a dip | f1 +0.11 [+0.04, +0.18]; f3 +0.11 [+0.03, +0.20]; **f5 +0.12 [+0.03, +0.20]**; f10 +0.01 [−0.07, +0.10]. Market-adjusted f5 +0.08 [+0.02, +0.13] | **Confirmed for 1–5 bars.** The bounce is over by bar 10 |
+| C2 rule D as trades, 10-bar exit (primary) | +0.04R [−0.06, +0.13], 8,685 trades; random entries +0.04R, p = 0.76. Negative in 2001, 2002, 2007, 2008, 2010 | **Not confirmed** |
+| C2 rule D with the 3-ATR chandelier (alternative) | +0.09R [−0.03, +0.21], 7,874 trades; random entries +0.07R (sd 0.01), p = 0.05 | Beats random entries; the interval still includes zero |
+| C3 12-1 month momentum | Relative strength > +1σ: fx60 +0.02 [−0.03, +0.08]; ≤ −1σ: −0.02 [−0.09, +0.05]. Absolute momentum: ±0.00 | **Not confirmed** |
+| C4 dips without an uptrend | Market-adjusted f5 +0.01 [−0.02, +0.04] | No bounce, as expected |
+
+In risk units, +0.12 over 5 bars is about +0.26σ of daily volatility: roughly +0.3% to +0.5% for a
+typical stock, before costs. That is real and small.
+
+**Pre-registered questions (E05) repeated on LH**
+
+| Question | LH result |
+|---|---|
+| Q1 Regime information | None: chart up vs rest +0.01 [−0.05, +0.07]; context up +0.01 [−0.06, +0.07]; market up +0.03 [−0.08, +0.15] |
+| Q2 S1 rules | v2 −0.01 [−0.05, +0.03]; v1 −0.02 [−0.09, +0.04] |
+| Q4 S2, S3 | S2 +0.02 [−0.08, +0.12]. **S3 −0.08 [−0.15, −0.00]: significantly negative** |
+| Q5 Volume | Nothing in the predicted direction. Asymmetry regression −0.006 [−0.028, +0.014]. Absorption at lows: +0.02 [−0.11, +0.14] raw, +0.09 [+0.04, +0.15] market-adjusted (same sign as on A, B, DJ) |
+| Q6 Stops | Close-based stops: +0.04R better on average [+0.01, +0.08], but 5.4% of trades lose more than 1.5R against 0.8% with intrabar stops. Worst single trade with an intrabar stop: −21R (a gap through the stop) |
+| Q7 S1 vs random entries | +0.04R vs +0.03R, p = 0.43 |
+
+### 2.6 H1: the trend filter as a risk switch (E09)
+
+H1 was pre-registered in `04_trend_setups.md`: the regime filter improves the risk profile of holding
+single stocks. Position decided at the close, 5 bp per switch, cash earns nothing. Output:
+`research/results/e09_regime_risk.json`.
+
+| Equal-weight portfolio | LH 1999–2013 | SP5 2014–2018 | DJ 2007–2013 |
+|---|---|---|---|
+| Buy and hold: Sharpe / max drawdown | 0.78 / −53% | 0.78 / −17% | 0.40 / −48% |
+| Long unless the **weekly** trend is down | 0.80 / −33% | 0.78 / −12% | 0.44 / −29% |
+| Long only while the weekly trend is up | 0.64 / −12% | 0.75 / −5% | 0.09 / −14% |
+| Long unless the **daily** trend is down | 0.62 / −40% | 0.68 / −12% | 0.38 / −40% |
+| Long unless the market's daily trend is down | 0.72 / −51% | 0.46 / −19% | 0.22 / −46% |
+| Long while above the 200-day average | 0.58 / −24% | 0.71 / −8% | 0.34 / −23% |
+
+- Per stock, no rule raises the Sharpe ratio for most stocks (8–39% improved). **H1's return
+  criterion fails.**
+- Drawdowns are smaller for most stocks (65–93% on LH), and at portfolio level the weekly "not down"
+  rule cut the maximum drawdown by 29–40% (5 to 20 percentage points) at an unchanged Sharpe ratio,
+  in all three sets. **H1's drawdown part holds.**
+- The chart's own (daily) regime is worse than the weekly one on every measure.
+- Survivorship inflates the buy-and-hold returns here, so the cost of the filter in lost return is,
+  if anything, understated.
+
+### 2.7 What the evidence supports, and the design decisions
+
+Across four sets and about 1.7 million stock-days (1999–2018, daily bars, large US stocks):
+
+1. **No rule tested has a confirmed, tradable directional edge.** That includes the trend state,
+   pullback, breakout and reversal entries, every filter, and every volume signal.
+2. **One regularity is confirmed:** dips inside long-term uptrends bounce for 1–5 bars. It is small,
+   and as a complete stop-based trade rule it is not confirmed; it lost money in bear-market years.
+3. **The higher-timeframe trend is a risk switch, not a predictor.** Standing aside while it is down
+   cut drawdowns by 29–40% at the same risk-adjusted return.
+4. **Stop orders cap losses** (about 1% of trades worse than −1.5R, against 5–9% with exits on the
+   close), but a gap can jump any stop.
+
+Decisions (v2 of the suite):
+
+| Element | Decision | Basis |
+|---|---|---|
+| Long-term (context) trend | Main readout; chart shaded while it is Down; trades from setup D close when it turns Down | 2.6 |
+| Chart-timeframe trend state | Kept as information only | Q1 |
+| Setup D, dip in a long-term uptrend | Default setup, labelled as an unconfirmed candidate; entry at the dip's close, stop 2 ATR, 3-ATR trailing stop; optional time exit | C1 confirmed, C2 not; the chandelier beat random entries on A, B and LH |
+| v1/v2 pullback entry (S1) | Removed from the TradingView script; kept in Python for the record | Q2, Q7 |
+| Breakout (B) and reversal (R) | Off by default, labelled | Q4 |
+| Context, market and strength filters | Shown as information; one optional market filter, off by default | Q3 |
+| Stops | Stop orders by default; minimum distance 1 ATR; position capped at 25% of the account | Q6 |
+| Volume pane | Reduced to relative volume and "absorption at lows"; flow lines, asymmetry tint, accumulation / distribution, divergences removed | Q5 |
+| 12-month momentum | Not added | C3 |
+
+Still untested: everything intraday (1h, 4h), weekly charts, small caps, other markets, and any
+period after early 2018. A survivorship-free dataset would be needed to trust absolute return levels.

@@ -1,6 +1,11 @@
-"""Volume Flow v2: reference implementation (Pine twin: pine/volume_flow_v2.pine).
+"""Volume series: reference implementation.
 
-What it measures (docs/03_volume_flow_v2.md):
+Pine twin: pine/relative_volume.pine uses `rvol`, `z`, `ext`, `absorb_bottom`, `climax_*`, `dryup`.
+The flow ratio, asymmetry and divergence series belonged to "Volume Flow v2"; tests found no
+directional information in them (docs/03_relative_volume.md). They stay here for the record and
+for experiment E05.
+
+What it computes:
   RVOL   volume relative to what is normal for this bar (per time-of-day slot on intraday charts)
   F      bounded flow ratio in [-1, 1]: smoothed signed volume / smoothed volume
   A, Az  volume asymmetry: the part of F that comes from volume being heavier on up or down bars,
@@ -55,7 +60,8 @@ def ltf_direction(ltf: pd.DataFrame, bar_id: np.ndarray, n_bars: int) -> np.ndar
     TradingView's Volume Delta rule: close > open up, close < open down; if equal, compare with
     the previous intrabar close; if still equal, repeat the last direction.
     ltf: frame with open, close, volume; bar_id[i] = chart-bar index of LTF row i (non-decreasing).
-    Bars without intrabar data are NaN. Pine twin: the LTF block in volume_flow_v2.pine."""
+    Bars without intrabar data are NaN. Pine twin: the lower-timeframe block of the former
+    Volume Flow v2 script (not part of pine/relative_volume.pine)."""
     up = np.zeros(n_bars)
     dn = np.zeros(n_bars)
     has = np.zeros(n_bars, dtype=bool)

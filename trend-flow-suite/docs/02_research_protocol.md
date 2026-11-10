@@ -128,6 +128,10 @@ The Financial Datasets connector worked for AAPL but answered "Unauthorized" for
 ^GSPC (likely a plan restriction). Through chat it also costs about 45 tokens per bar, so it suits
 spot checks, not bulk research.
 
+**Update, 10 Nov 2026.** Three public Kaggle sets mirrored on GitHub turned out to be reachable and
+were used for the daily-bar validation in `06_validation_lite.md`. They hold survivors only and no
+intraday data, so the options below still apply to intraday and survivorship-free tests.
+
 Options for the research harness, which reads files or APIs directly:
 
 | Option | Covers | Notes |

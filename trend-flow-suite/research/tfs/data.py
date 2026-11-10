@@ -89,18 +89,24 @@ def fetch_financial_datasets(ticker: str, start: str, end: str, interval: str = 
 
 def load_ohlcv_dir(path: str | Path, pattern: str = "*.csv", min_bars: int = 700,
                    start: str | None = None, end: str | None = None,
-                   skip_prefixes: tuple[str, ...] = ("all_stocks",)):
+                   skip_prefixes: tuple[str, ...] = ("all_stocks",), tickers=None):
     """Load a folder of per-ticker daily CSVs. Returns ({ticker: frame}, audit dict).
 
     Cleaning: rows with a missing or non-positive OHLC value are dropped; missing volume becomes
     0; high/low are widened to contain open and close; duplicate dates keep the last row.
     Tickers with fewer than `min_bars` rows after the date filter are skipped.
-    The ticker is the file name up to the first underscore."""
+    The ticker is the file name up to the first underscore ("AAPL_data.csv") or, without one, up
+    to the first dot ("aapl.us.txt"), upper-cased. `tickers`: optional set of tickers to load."""
     out, audit = {}, {"files": 0, "kept": 0, "too_short": 0, "rows": 0, "rows_dropped": 0,
                       "rows_hl_repaired": 0, "zero_volume_rows": 0, "max_abs_log_return": {}}
     for f in sorted(Path(path).rglob(pattern)):
         if f.name.startswith(skip_prefixes) or f.name.startswith(".") or "__MACOSX" in f.parts:
             continue                                  # combined files, hidden files, macOS metadata
+        tkr = (f.name.split("_")[0] if "_" in f.name else f.name.split(".")[0]).upper()
+        if tickers is not None and tkr not in tickers:
+            continue
+        if f.stat().st_size == 0:
+            continue
         audit["files"] += 1
         d = pd.read_csv(f)
         d.columns = [c.strip().lower() for c in d.columns]
@@ -123,7 +129,6 @@ def load_ohlcv_dir(path: str | Path, pattern: str = "*.csv", min_bars: int = 700
         if len(d) < min_bars:
             audit["too_short"] += 1
             continue
-        tkr = f.name.split("_")[0]
         out[tkr] = d.astype(float)
         audit["kept"] += 1
         audit["rows"] += len(d)

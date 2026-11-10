@@ -1,7 +1,8 @@
 """E03 - Volume Flow v2: calibration and behaviour (descriptive only, Nov 2026).
 
 Deliberately NOT a profitability test. Predictive hypotheses (H2, H5-H7 in
-docs/03_volume_flow_v2.md) are tested in Phase 4 on a stock universe, per the research protocol.
+the former docs/03_volume_flow_v2.md) were later tested on real stocks in E05 and E08 and failed;
+see docs/03_relative_volume.md. This script is kept as a record of the v1 pane.
 Here we check that the indicator behaves as designed:
   1. calibration: standardised returns ~ unit scale, relative volume centred on 1;
   2. ranges of flow and asymmetry; overlap with the old VFI and with price momentum;

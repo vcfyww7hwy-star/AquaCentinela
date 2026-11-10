@@ -14,7 +14,8 @@ def test_strategy_is_generated_from_the_indicator_and_kept_in_sync():
     assert "strategy.entry(" in out and "strategy.close(" in out
     assert "float equityNow = strategy.equity" in out
     # every non-indicator line of the source logic is carried over unchanged
-    for key in ("trendScore(", "trendDir(", "newEntry := 1", "exitReason := 3", "stopLevel := stopNew"):
+    assert 'strategy.exit("Stop", "Long", stop = stopLevel' in out
+    for key in ("trendScore(", "trendDir(", "robustVarLagged(", "sigNow  := 1", "exitReason := 3", "stopLevel  := sigStop"):
         assert key in out
     # the committed strategy file is exactly what the builder produces today
     assert DST.read_text(encoding="utf-8") == out

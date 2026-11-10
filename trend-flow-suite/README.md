@@ -3,26 +3,29 @@
 A personal indicator suite for trading US stocks on 1h, 4h, daily and weekly charts (TradingView, Pine v6).
 It comes with a Python research harness that tests every rule against out-of-sample data and controls for overfitting.
 
-**Status:** Phases 0–3 are built: the fixed VFI, Volume Flow v2, and Trend & Setups (with its strategy version). All Pine scripts await a compile check in TradingView. Phase 4 (validation) needs a stock data source. See [docs/00_roadmap.md](docs/00_roadmap.md).
+**Status (10 Nov 2026):** v2. The suite was rebuilt after testing its first version on about 1.7 million
+stock-days of real data. The honest summary: no rule here has a confirmed trading edge; the long-term
+trend works as a risk switch; dips inside long-term uptrends bounce briefly. The three changed
+TradingView scripts still need a compile check. See [docs/06_validation_lite.md](docs/06_validation_lite.md).
 
 ## Contents
 
 | Path | What it is |
 |---|---|
-| `pine/vfi_faithful_v6.pine` | Phase 0: the LazyBear/LucF Volume Flow Indicator, ported to Pine v6 with 8 defects fixed |
-| `pine/volume_flow_v2.pine` | Phase 1: lower pane, flow ratio, volume asymmetry, climax/absorption/divergence warnings |
-| `pine/trend_setups.pine` | Phases 2–3: price overlay, calibrated trend regime, context and relative strength, swings, anchored VWAP, setups S1–S3, stops, sizing, alerts |
-| `pine/trend_setups_strategy.pine` | Strategy version for TradingView's Strategy Tester (generated from the indicator; do not edit) |
-| `docs/00_roadmap.md` | Architecture, phases, assumptions, open decisions |
+| `pine/trend_setups.pine` | Trend & Setups v2 (overlay): long-term trend as a risk switch, structure, setup D (dip in an uptrend), stop orders, sizing, alerts |
+| `pine/trend_setups_strategy.pine` | The same rules for TradingView's Strategy Tester (generated from the indicator; do not edit) |
+| `pine/relative_volume.pine` | Relative Volume (pane): volume relative to normal for the time of day, absorption at lows |
+| `pine/vfi_faithful_v6.pine` | The LazyBear/LucF Volume Flow Indicator ported to Pine v6 with 8 defects fixed (baseline) |
+| `docs/00_roadmap.md` | What exists, what is open |
 | `docs/01_vfi_critique.md` | Measured critique of the original VFI |
-| `docs/02_research_protocol.md` | How rules are tested and accepted, and why brute-force optimisation is not used |
-| `docs/03_volume_flow_v2.md` | Volume Flow v2: definitions, design evidence, pre-registered hypotheses |
-| `docs/04_trend_setups.md` | Trend & Setups: definitions, setups, evidence, pre-registered hypotheses |
-| `docs/05_playbook.md` | How to use the suite: set-up, timeframes, entry checklist, trade management (draft) |
-| `research/tfs/` | Python package: shared core (Pine twins), VFI, Volume Flow v2 and Trend & Setups references, backtests, PBO / Deflated Sharpe / null tests |
-| `research/tools/parity_check.py` | Checks TradingView's exported values against the Python reference |
-| `research/tools/build_strategy.py` | Generates the strategy script from the indicator so the two never drift apart |
-| `research/experiments/` | E01 VFI diagnostics; E02 brute-force overfitting study; E03 Volume Flow v2 diagnostics; E04 Trend & Setups smoke test |
+| `docs/02_research_protocol.md` | How rules are tested, and why brute-force optimisation is not used |
+| `docs/03_relative_volume.md` | Volume pane: what was removed and why |
+| `docs/04_trend_setups.md` | Trend & Setups v2: definitions, setups, evidence |
+| `docs/05_playbook.md` | How to use the suite |
+| `docs/06_validation_lite.md` | The tests on real stocks: plan, results, decisions |
+| `research/tfs/` | Python package: twins of every Pine calculation, backtests, overfitting statistics |
+| `research/tools/` | `parity_check.py` (TradingView export vs Python), `build_strategy.py` (generates the strategy script) |
+| `research/experiments/` | E01–E04 (first version), E05–E09 (validation on real stocks) |
 | `research/results/` | JSON outputs of the experiments |
 
 ## Quick start
@@ -30,8 +33,9 @@ It comes with a Python research harness that tests every rule against out-of-sam
 ```bash
 cd research
 pip install -r requirements.txt
-python -m pytest -q                         # 44 tests
-python -m experiments.e02_overfitting       # about 2 minutes
+python -m pytest -q                         # 94 tests
+python -m experiments.e02_overfitting       # about 2 minutes, bundled data
+# E05–E09 need the public Kaggle sets named in docs/06_validation_lite.md (not in this repository)
 ```
 
 To use a Pine script, open TradingView's Pine Editor and create a new indicator. **Select all of the

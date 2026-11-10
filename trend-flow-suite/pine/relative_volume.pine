@@ -1,0 +1,127 @@
+//@version=6
+// Relative Volume — trend-flow-suite (lower pane). Replaces "Volume Flow v2".
+// Tests on about 1.7 million stock-days (docs/06_validation_lite.md) found NO directional information in volume
+// flow, accumulation/distribution, climaxes or divergences, so those are gone. What remains is descriptive:
+//   Columns   volume relative to what is normal for this bar (per time-of-day slot on intraday charts);
+//             1.0 = normal. Colour = direction of the bar's close-to-close move.
+//   Marker A  absorption at lows: heavy volume, a small move, price stretched below its baseline. The one volume
+//             event with consistent, weak support in the tests. A warning for shorts / context for dips, not a signal.
+//   Optional  climax and dry-up marks, for information only.
+// Python twin: research/tfs/flow.py (series rvol, z, ext, absorb_bottom, climax_up, climax_dn, dryup).
+// Personal research tool, not investment advice.
+indicator("Relative Volume", shorttitle = "RVOL", overlay = false, precision = 2)
+
+// ───── Palette (Okabe-Ito, colour-blind safe) ─────
+color C_UP  = #0072B2
+color C_DN  = #D55E00
+color C_ABS = #009E73
+
+// ───── Shared core: twins of research/tfs/core.py (seeded with first value; hold on na) ─────
+ema1(float x, int n) =>
+    float a = 2.0 / (n + 1)
+    var float e = na
+    e := na(e) ? x : na(x) ? e : a * x + (1.0 - a) * e
+    e
+
+rma1(float x, int n) =>
+    float a = 1.0 / n
+    var float e = na
+    e := na(e) ? x : na(x) ? e : a * x + (1.0 - a) * e
+    e
+
+smooth2(float x, int n) =>
+    ema1(ema1(x, n), n)
+
+// Per-slot EWMA returning the slot's value BEFORE this bar (no self-inclusion); updated on closed bars
+slotEwmaLagged(float x, int slot, int span) =>
+    var array<float> st = array.new<float>()
+    while array.size(st) <= slot
+        array.push(st, na)
+    float prev = array.get(st, slot)
+    if barstate.isconfirmed and not na(x)
+        float a = 2.0 / (span + 1)
+        array.set(st, slot, na(prev) ? x : a * x + (1.0 - a) * prev)
+    prev
+
+// ───── Inputs ─────
+string G_N = "Normal volume"
+int    normIntra = input.int(20, "Intraday: sessions per time-of-day slot", minval = 2, group = G_N)
+int    normDaily = input.int(50, "Daily and higher: bars", minval = 2, group = G_N)
+float  hiLevel   = input.float(2.0, "Mark level: unusual volume at ×", minval = 1.0, step = 0.5, group = G_N)
+
+string G_EV = "Events"
+bool   showAbs   = input.bool(true, "A — absorption at lows", group = G_EV)
+float  absRvol   = input.float(2.0, "Absorption: relative volume ≥", group = G_EV)
+float  absZ      = input.float(0.5, "Absorption: |move| ≤ (σ)", group = G_EV)
+float  absExt    = input.float(1.5, "Absorption: stretched below the baseline by ≥ (ATR)", group = G_EV)
+bool   showClim  = input.bool(false, "Climax marks (no predictive value in tests)", group = G_EV)
+float  climRvol  = input.float(3.0, "Climax: relative volume ≥", group = G_EV)
+float  climZ     = input.float(2.0, "Climax: |move| ≥ (σ)", group = G_EV)
+float  climExt   = input.float(2.5, "Climax: |extension| ≥ (ATR)", group = G_EV)
+bool   showDry   = input.bool(false, "Dry-up marks", group = G_EV)
+float  dryRvol   = input.float(0.6, "Dry-up: relative volume ≤", group = G_EV)
+int    extWin    = input.int(50, "Baseline window (SMA-equivalent bars)", minval = 3, group = G_EV)
+int    atrLen    = input.int(14, "ATR length", minval = 1, group = G_EV)
+bool   showTable = input.bool(true, "Show status table", group = "Display")
+
+// ───── Data guard ─────
+float cumVol = ta.cum(nz(volume))
+if barstate.islast and cumVol == 0
+    runtime.error("This symbol has no volume data. Use a symbol with volume (e.g. SPY instead of the SPX index).")
+
+// ───── Normal volume and volatility: time-of-day slots intraday, one slot on D/W/M ─────
+var int slotCount = -1
+slotCount := session.isfirstbar ? 0 : slotCount + 1
+int   slot  = timeframe.isintraday ? slotCount : 0
+int   span  = timeframe.isintraday ? normIntra : normDaily
+float r     = math.log(close / close[1])
+float sigma = math.sqrt(slotEwmaLagged(r * r, slot, span))
+float z     = sigma > 0 ? r / sigma : na
+float ev    = slotEwmaLagged(volume, slot, span)
+float rvol  = ev > 0 ? volume / ev : na
+
+// ───── Price context: extension from a two-pole baseline, in ATR units ─────
+float tr   = na(close[1]) ? high - low : math.max(high - low, math.abs(high - close[1]), math.abs(low - close[1]))
+float atr  = rma1(tr, atrLen)
+float base = smooth2(close, math.floor((extWin + 1) / 2.0))
+float ext  = atr > 0 ? (close - base) / atr : na
+
+// ───── Events ─────
+bool conf   = barstate.isconfirmed
+bool absBot = rvol >= absRvol and math.abs(z) <= absZ and ext <= -absExt
+bool climUp = rvol >= climRvol and z >= climZ and ext >= climExt
+bool climDn = rvol >= climRvol and z <= -climZ and ext <= -climExt
+bool dryUp  = rvol <= dryRvol
+
+// ───── Plots ─────
+color colCol = r >= 0 ? color.new(C_UP, rvol >= hiLevel ? 0 : 45) : color.new(C_DN, rvol >= hiLevel ? 0 : 45)
+plot(rvol, "Relative volume", color = colCol, style = plot.style_columns)
+hline(1.0, "Normal", color = color.new(color.gray, 30), linestyle = hline.style_solid)
+hline(hiLevel, "Unusual volume level", color = color.new(color.gray, 60), linestyle = hline.style_dotted)
+
+plotshape(showAbs and absBot and conf, title = "Absorption at lows", style = shape.labelup, location = location.bottom, color = C_ABS, text = "A", textcolor = color.white, size = size.tiny)
+plotshape(showClim and climUp and conf, title = "Buying climax", style = shape.xcross, location = location.top, color = C_DN, size = size.tiny)
+plotshape(showClim and climDn and conf, title = "Selling climax", style = shape.xcross, location = location.top, color = C_UP, size = size.tiny)
+plotshape(showDry and dryUp and conf, title = "Dry-up", style = shape.circle, location = location.bottom, color = color.new(color.gray, 40), size = size.tiny)
+
+// Diagnostic series for Pine ↔ Python parity checks (data window and chart export only)
+plot(z, "dbg_z", display = display.data_window)
+plot(rvol, "dbg_rvol", display = display.data_window)
+plot(ext, "dbg_ext", display = display.data_window)
+
+// ───── Status table ─────
+var string lastAbs = "—"
+if conf and absBot
+    lastAbs := str.format_time(time, "yyyy-MM-dd", syminfo.timezone)
+var table tbl = table.new(position.top_right, 2, 3, bgcolor = color.new(color.black, 85), border_width = 1)
+if showTable and barstate.islast
+    table.cell(tbl, 0, 0, "Relative volume", text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 1, 0, str.tostring(rvol, "0.00") + "×", text_color = rvol >= hiLevel ? color.white : color.silver, text_size = size.small)
+    table.cell(tbl, 0, 1, "Bar move", text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 1, 1, str.tostring(z, "0.0") + " σ", text_color = color.silver, text_size = size.small)
+    table.cell(tbl, 0, 2, "Last absorption at lows", text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 1, 2, lastAbs, text_color = color.silver, text_size = size.small)
+
+// ───── Alerts (fire once, at bar close) ─────
+alertcondition(absBot and conf, "RVOL absorption at lows", "Absorption at lows on {{ticker}} ({{interval}}) at {{close}}")
+alertcondition(rvol >= hiLevel and conf, "RVOL unusual volume", "Unusual volume on {{ticker}} ({{interval}}) at {{close}}")

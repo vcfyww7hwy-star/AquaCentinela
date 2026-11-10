@@ -96,7 +96,7 @@ def test_s1_fires_on_first_close_above_prior_high_after_a_confirmed_swing_high()
     rng = np.random.default_rng(31)
     r = np.r_[rng.normal(0.004, 0.008, 320), np.full(4, -0.02), [0.012], rng.normal(0.003, 0.008, 40)]
     df = ohlcv_from_returns(r, seed=31)
-    f, _ = trend_setups(df, p=TrendParams(use_s2=False, use_s3=False, **NOFILT))
+    f, _ = trend_setups(df, p=TrendParams(s1_mode="swing", **NOFILT))
     sh = np.flatnonzero(f["new_sh"].to_numpy() & (np.arange(len(f)) >= 320))
     s1 = np.flatnonzero(f["raw_s1"].to_numpy() & (np.arange(len(f)) >= 320))
     assert len(sh) >= 1 and len(s1) >= 1
@@ -115,7 +115,7 @@ def test_s1_fires_on_first_close_above_prior_high_after_a_confirmed_swing_high()
 def test_signals_do_not_depend_on_the_open_position():
     rng = np.random.default_rng(32)
     df = ohlcv_from_returns(rng.normal(0.001, 0.015, 1500), seed=32)
-    runs = [trend_setups(df, p=TrendParams(stop_mode=sm, exit_mode=em, **NOFILT))[0]
+    runs = [trend_setups(df, p=TrendParams(s1_mode="swing", use_s2=True, use_s3=True, stop_mode=sm, exit_mode=em, **NOFILT))[0]
             for sm in ("intrabar", "close") for em in ("chandelier", "structure")]
     for f in runs[1:]:
         for col in ("sig", "raw_s1", "raw_s2", "raw_s3"):
@@ -129,13 +129,14 @@ def test_signals_do_not_depend_on_the_open_position():
 @pytest.mark.parametrize("seed", range(4))
 @pytest.mark.parametrize("stop_mode", ["intrabar", "close"])
 @pytest.mark.parametrize("exit_mode", ["chandelier", "structure"])
-@pytest.mark.parametrize("s1_mode", ["swing", "baseline"])
+@pytest.mark.parametrize("s1_mode", ["dip", "swing", "baseline"])
 def test_trade_invariants(seed, stop_mode, exit_mode, s1_mode):
     rng = np.random.default_rng(100 + seed)
     drift = rng.choice([-0.001, 0.0, 0.001, 0.002])
     df = ohlcv_from_returns(rng.normal(drift, 0.015, 1500), seed=seed)
-    p = TrendParams(stop_mode=stop_mode, exit_mode=exit_mode, s1_mode=s1_mode, tick=0.01, **NOFILT)
-    f, trades = trend_setups(df, p=p)
+    p = TrendParams(stop_mode=stop_mode, exit_mode=exit_mode, s1_mode=s1_mode, use_s2=True, use_s3=True, tick=0.01, **NOFILT)
+    f, trades = trend_setups(df, p=p, htf_dir=weekly_context_dir(df))
+    dip = s1_mode == "dip"
     o, h, l, c = (df[k].to_numpy() for k in ("open", "high", "low", "close"))
     lvl = f["stop_level"].to_numpy()
     for _, tr in trades.iterrows():
@@ -146,10 +147,14 @@ def test_trade_invariants(seed, stop_mode, exit_mode, s1_mode):
         assert np.isclose(tr.r, (tr.exit - tr.entry) / (tr.entry - tr.stop))
         assert f["in_trade"].iloc[e:x].all() and not f["in_trade"].iloc[x]         # one position at a time
         assert (np.diff(lvl[e:x]) >= -1e-9).all()                                  # the stop never moves down
-        if tr.setup in (1, 2):
+        if tr.setup == 1 and dip:
+            assert f["ctx_dir"].iloc[e] == 1 and f["dip_z"].iloc[e] <= p.dip_z
+            assert abs((tr.entry - tr.stop) - p.dip_stop_atr * f["atr"].iloc[e]) < 0.006   # 2 ATR, tick-rounded
+        elif tr.setup in (1, 2):
             assert f["dir"].iloc[e] >= (1 if tr.setup == 1 else 0)
         if tr.reason == 3:
-            assert f["dir"].iloc[x] == -1 and tr.exit == c[x]
+            trend = f["ctx_dir"] if (dip and tr.setup == 1) else f["dir"]
+            assert trend.iloc[x] == -1 and tr.exit == c[x]
         elif stop_mode == "intrabar":
             assert l[x] <= lvl[x - 1] and np.isclose(tr.exit, min(o[x], lvl[x - 1]))
             assert (l[e + 1:x] > lvl[e:x - 1]).all()                               # not hit earlier
@@ -212,11 +217,11 @@ def test_filters_block_signals_when_context_market_or_strength_is_down():
     rng = np.random.default_rng(33)
     df = ohlcv_from_returns(rng.normal(0.002, 0.012, 1200), seed=33)
     falling = 100 * np.exp(np.cumsum(np.full(1200, -0.004)))          # market in a steady downtrend
-    base, _ = trend_setups(df, p=TrendParams(use_s3=False, **NOFILT))
+    base, _ = trend_setups(df, p=TrendParams(s1_mode="swing", use_s2=True, **NOFILT))
     assert (base["sig"] > 0).sum() > 0
-    mkt, _ = trend_setups(df, p=TrendParams(use_s3=False, use_ctx=False, use_rs=False, use_mkt=True), bench_close=falling)
+    mkt, _ = trend_setups(df, p=TrendParams(s1_mode="swing", use_s2=True, use_ctx=False, use_rs=False, use_mkt=True), bench_close=falling)
     assert (mkt["mkt_dir"].iloc[300:] == -1).all() and (mkt["sig"] > 0).sum() == 0
-    ctx, _ = trend_setups(df, p=TrendParams(use_s3=False, use_ctx=True, use_rs=False, use_mkt=False),
+    ctx, _ = trend_setups(df, p=TrendParams(s1_mode="swing", use_s2=True, use_ctx=True, use_rs=False, use_mkt=False),
                           htf_dir=np.full(1200, -1))
     assert (ctx["sig"] > 0).sum() == 0
     assert (mkt["raw_s1"] == base["raw_s1"]).all()                    # filters do not change raw detection
@@ -228,7 +233,7 @@ def test_s2_compression_breakout_fires_on_constructed_path():
     r = np.r_[rng.normal(0.0015, 0.015, 300), rng.normal(0.0, 0.002, 40), [0.04], rng.normal(0.001, 0.01, 30)]
     df = ohlcv_from_returns(r, seed=21)
     df.iloc[340, df.columns.get_loc("volume")] *= 4.0                 # breakout bar volume
-    f, _ = trend_setups(df, p=TrendParams(use_s1=False, **NOFILT))    # the trade may still be open
+    f, _ = trend_setups(df, p=TrendParams(use_s1=False, use_s2=True, **NOFILT))    # the trade may still be open
     entries = np.flatnonzero(f["entry"].to_numpy() == 2)
     assert len(entries) >= 1 and entries[0] == 340
     e = int(entries[0])
@@ -242,8 +247,51 @@ def test_regime_flip_exit_when_stops_are_out_of_reach():
     rng = np.random.default_rng(22)
     r = np.r_[rng.normal(0.002, 0.01, 450), rng.normal(-0.003, 0.01, 250)]
     df = ohlcv_from_returns(r, seed=22)
-    p = TrendParams(trail_atr=1e6, stop_buf=1e3, s1_mode="baseline", **NOFILT)   # stop and trail can never be hit
+    # stop and trail can never be hit; warm-up off because the only pullbacks to the baseline come early
+    p = TrendParams(trail_atr=1e6, stop_buf=1e3, s1_mode="baseline", warmup=0, **NOFILT)
     f, trades = trend_setups(df, p=p)
     assert len(trades) >= 1 and (trades.reason == 3).all()
     for x in trades.exit_bar.astype(int):
         assert f["dir"].iloc[x] == -1 and f["dir"].iloc[x - 1] != -1  # exits on the first down bar
+
+
+# ---------------- D "dip in a long-term uptrend" (default setup) ----------------
+def test_dip_setup_matches_its_definition_exactly():
+    rng = np.random.default_rng(41)
+    df = ohlcv_from_returns(rng.normal(0.0012, 0.015, 2500), seed=41)
+    ctx = weekly_context_dir(df)
+    p = TrendParams()
+    f, _ = trend_setups(df, p=p, htf_dir=ctx)
+    lnc = np.log(df["close"].to_numpy())
+    sig = np.sqrt(robust_var_lagged(np.r_[np.nan, np.diff(lnc)], p.sigma_span, p.sigma_clip))
+    z = np.full(len(df), np.nan)
+    z[5:] = (lnc[5:] - lnc[:-5]) / (sig[5:] * np.sqrt(5))
+    assert np.allclose(f["dip_z"], z, equal_nan=True)
+    with np.errstate(invalid="ignore"):
+        in_dip = z <= -1.5
+    first = in_dip & ~np.r_[False, in_dip[:-1]]
+    expected = first & (ctx == 1) & np.isfinite(f["atr"].to_numpy())
+    assert expected.sum() > 20 and (f["raw_s1"].to_numpy() == expected).all()
+    t = np.flatnonzero(expected)
+    assert np.allclose(f["stop1"].to_numpy()[t], df["close"].to_numpy()[t] - 2.0 * f["atr"].to_numpy()[t])
+    assert (f["sig"].to_numpy()[t][t >= p.warmup] == 1).all()
+    none, _ = trend_setups(df, p=p)                                   # no context supplied -> no dip signals
+    assert none["raw_s1"].sum() == 0
+
+
+def test_dip_trade_follows_the_context_regime_and_the_time_exit():
+    n = 10
+    o = h = l = c = np.full(n, 100.0)
+    h, l = c + 0.5, c - 0.5
+    atr, last_sl = np.full(n, 1.0), np.full(n, np.nan)
+    chart_down = -np.ones(n, dtype=int)                               # must be ignored for setup 1
+    ctx = np.array([1, 1, 1, 1, 1, -1, -1, -1, -1, -1])
+    sig, stop = np.zeros(n, dtype=int), np.full(n, np.nan)
+    sig[1], stop[1] = 1, 98.0
+    _, tr = simulate_trades(o, h, l, c, atr, chart_down, last_sl, sig, stop, TrendParams(), d_dip=ctx)
+    assert len(tr) == 1 and tr[0]["exit_bar"] == 5 and tr[0]["reason"] == 3
+    _, tr = simulate_trades(o, h, l, c, atr, chart_down, last_sl, sig, stop, TrendParams(max_bars=3), d_dip=ctx)
+    assert tr[0]["exit_bar"] == 4 and tr[0]["reason"] == 4 and tr[0]["bars"] == 3
+    sig2 = sig.copy(); sig2[1] = 2                                    # setup 2 follows the chart regime
+    _, tr = simulate_trades(o, h, l, c, atr, chart_down, last_sl, sig2, stop, TrendParams(), d_dip=ctx)
+    assert tr[0]["exit_bar"] == 2 and tr[0]["reason"] == 3

@@ -10,9 +10,11 @@ Modules (docs/04_trend_setups.md):
   structure    ATR-reversal swings (confirmed on close), HH/HL/LH/LL, structure breaks
   AVWAP        volume-weighted average price anchored at the last confirmed swing low / high
   setups       detected on every bar, independently of any open position:
-               S1 higher-low pullback, S2 compression breakout, S3 confirmed reversal
-  trades       one managed position at a time: stop with a minimum distance, trailing exit,
-               regime exit, R-multiples
+               D  dip in a long-term uptrend (default; docs/06_validation_lite.md)
+               B  compression breakout, R confirmed reversal (off by default: no edge in tests)
+               The v1 pullback rules ("swing", "baseline") are kept for research only.
+  trades       one managed position at a time: intrabar stop, trailing exit, optional time exit,
+               exit when the trend that justified the trade turns down, R-multiples
 Every stateful step mirrors the Pine script line for line; the tests check no look-ahead.
 """
 from __future__ import annotations
@@ -69,12 +71,17 @@ class TrendParams:
     swing_atr: float = 2.0       # swing confirmed when close reverses 2 ATR from the extreme
     norm_span_intraday: int = 20
     norm_span_daily: int = 50
-    # setups
+    # setups (ids: 1 = dip / pullback, 2 = breakout, 3 = reversal)
     use_s1: bool = True
-    use_s2: bool = True
-    use_s3: bool = True
-    s1_mode: str = "swing"       # "swing": after a confirmed swing high (>= swing_atr pullback);
-                                 # "baseline": v1 rule, close within pull_ext ATR of the baseline
+    use_s2: bool = False         # off by default: no edge in E05/E08
+    use_s3: bool = False         # off by default: negative in E08
+    s1_mode: str = "dip"         # "dip": context regime up and the dip_len-bar return <= dip_z sigma,
+                                 #        first bar of the dip; stop = close - dip_stop_atr ATR
+                                 # research only -- "swing": first close above the prior high after a
+                                 #        confirmed swing high; "baseline": v1 rule near the baseline
+    dip_len: int = 5
+    dip_z: float = -1.5
+    dip_stop_atr: float = 2.0
     pull_ext: float = 0.25       # baseline mode only
     use_pull_vol: bool = False   # S1 needs average relative volume <= pull_vol_max in the pullback
     pull_vol_max: float = 1.0
@@ -84,10 +91,11 @@ class TrendParams:
     s2_stop_len: int = 10
     rev_lookback: int = 20       # S3: downtrend and oversold within the last 20 bars
     rev_ext: float = -2.0
-    # filters for S1 and S2 (see docs/06_validation_lite.md for how the defaults were chosen)
-    use_ctx: bool = True         # higher-timeframe regime not down
-    use_rs: bool = True          # relative strength vs benchmark not down
-    use_mkt: bool = True         # benchmark's own regime not down
+    # optional filters for setups 1 and 2; all off by default (no reliable effect in E05/E08).
+    # The dip setup always requires the context regime to be UP; that is part of its definition.
+    use_ctx: bool = False        # higher-timeframe regime not down
+    use_rs: bool = False         # relative strength vs benchmark not down
+    use_mkt: bool = False        # benchmark's own regime not down
     # risk
     stop_buf: float = 0.25       # stop buffer in ATR
     min_stop_atr: float = 1.0    # the initial stop is never closer than this many ATR
@@ -160,9 +168,11 @@ def regime(ts, enter: float, exit_: float) -> np.ndarray:
     return out
 
 
-def simulate_trades(o, h, l, c, atr, d, last_sl, sig, stop, p: TrendParams):
+def simulate_trades(o, h, l, c, atr, d, last_sl, sig, stop, p: TrendParams, d_dip=None):
     """One managed long position at a time. `sig[t]` > 0 with `stop[t]` proposes an entry at the
     close of bar t. Returns per-bar arrays and the list of completed trades.
+    A trade is closed when the trend that justified it turns down: the regime `d` for setups 2
+    and 3, and `d_dip` (the context regime) for setup 1 when it is given.
     Pine twin: the "Trade engine" block."""
     n = len(c)
     stop_level = np.full(n, np.nan)
@@ -194,7 +204,7 @@ def simulate_trades(o, h, l, c, atr, d, last_sl, sig, stop, p: TrendParams):
                     level = max(level, _round_tick(cand, p.tick))
                 if (not intrabar) and c[t] < level:
                     reason, px = (2 if level > stop_init else 1), c[t]
-                elif d[t] == -1:
+                elif (d_dip[t] if (setup == 1 and d_dip is not None) else d[t]) == -1:
                     reason, px = 3, c[t]
                 elif p.max_bars > 0 and t - entry_bar >= p.max_bars:
                     reason, px = 4, c[t]
@@ -274,7 +284,17 @@ def trend_setups(df: pd.DataFrame, intraday: bool = False, p: TrendParams = Tren
     s1_armed, s1_low, s1_hi_bar, pb_vs, pb_vn = False, np.nan, -1, 0.0, 0
     last_down_bar = None
     vz = np.nan_to_num(v)
-    swing_mode = p.s1_mode == "swing"
+    if p.s1_mode not in ("dip", "swing", "baseline"):
+        raise ValueError("s1_mode must be 'dip', 'swing' or 'baseline'")
+    swing_mode, dip_mode = p.s1_mode == "swing", p.s1_mode == "dip"
+    # dip_len-bar return in risk units, with the same lagged volatility as the trend score
+    lnc = np.log(c)
+    sig_r = np.sqrt(robust_var_lagged(np.r_[np.nan, np.diff(lnc)], p.sigma_span, p.sigma_clip))
+    dip_z = np.full(n, np.nan)
+    k = p.dip_len
+    dip_z[k:] = _safe_div(lnc[k:] - lnc[:-k], sig_r[k:] * math.sqrt(k))
+    with np.errstate(invalid="ignore"):
+        in_dip = dip_z <= p.dip_z                     # NaN compares False
 
     for t in range(n):
         sh_prev, sl_prev = last_sh, last_sl
@@ -341,7 +361,11 @@ def trend_setups(df: pd.DataFrame, intraday: bool = False, p: TrendParams = Tren
         # ---- raw setups (independent of any open position)
         raw1 = raw2 = raw3 = False
         stop1 = stop2 = stop3 = pbv = np.nan
-        if swing_mode:
+        if dip_mode:
+            # D "dip in a long-term uptrend": context regime up, first bar of a dip
+            if in_dip[t] and not (t > 0 and in_dip[t - 1]) and hd[t] == 1 and not np.isnan(atr[t]):
+                raw1, stop1 = True, c[t] - p.dip_stop_atr * atr[t]
+        elif swing_mode:
             # S1 "higher low": uptrend, a confirmed swing high (>= swing_atr ATR pullback by close),
             # then the first close above the prior bar's high while the last swing low holds
             if s1_armed:
@@ -408,8 +432,9 @@ def trend_setups(df: pd.DataFrame, intraday: bool = False, p: TrendParams = Tren
         bools["break_up"][t], bools["break_dn"][t] = brk_up, brk_dn
         bools["raw_s1"][t], bools["raw_s2"][t], bools["raw_s3"][t] = raw1, raw2, raw3
 
-    tr_cols, trades = simulate_trades(o, h, l, c, atr, d, cols["last_sl"], sig, cols["sig_stop"], p)
-    out = pd.DataFrame({"ts": ts, "dir": d, "atr": atr, "atr_long": atr_l, "base": base, "ext": ext,
+    tr_cols, trades = simulate_trades(o, h, l, c, atr, d, cols["last_sl"], sig, cols["sig_stop"], p,
+                                      d_dip=hd if dip_mode else None)
+    out = pd.DataFrame({"ts": ts, "dir": d, "dip_z": dip_z, "atr": atr, "atr_long": atr_l, "base": base, "ext": ext,
                         "rvol": rvol, "rs_ts": rs_ts, "rs_dir": rs_d, "mkt_ts": mkt_ts, "mkt_dir": mkt_d,
                         "ctx_dir": hd, "swing_label": labels, "sig": sig, **cols, **bools, **tr_cols},
                        index=df.index)

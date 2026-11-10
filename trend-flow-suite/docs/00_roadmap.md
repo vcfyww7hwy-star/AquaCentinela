@@ -1,28 +1,33 @@
 # Roadmap and decisions
 
-## Suite architecture
+## Suite (v2, 10 Nov 2026)
 
 ```
-shared core (volatility, kernels, trend z-score, flow, swing structure, time-of-day volume, MTF helpers)
-├── A  "Trend & Setups"   overlay: regime, ATR bands, structure, anchored VWAP, relative strength,
-│                         higher-timeframe table, setups S1–S3, position sizing, alerts
-├── B  "Volume Flow v2"   pane: relative volume, bounded flow ratio, volume asymmetry,
-│                         climax/absorption/dry-up events, divergences
-├── A′ strategy twin      Pine strategy() for single-symbol checks
-└── research/             Python: same maths, multi-symbol validation (docs/02_research_protocol.md)
+pine/trend_setups.pine           overlay: long-term trend as a risk switch, structure, setup D (dip in an
+                                 uptrend), stops, sizing, alerts
+pine/trend_setups_strategy.pine  the same rules for TradingView's Strategy Tester (generated)
+pine/relative_volume.pine        pane: volume relative to normal, absorption at lows
+pine/vfi_faithful_v6.pine        the original VFI, defects fixed (baseline, optional)
+research/                        Python twins of every calculation, tests, experiments E01–E09
 ```
 
 ## Phases
 
-| Phase | Deliverable | Status | Done when |
-|---|---|---|---|
-| 0 | `pine/vfi_faithful_v6.pine`: faithful port, defects D1–D8 fixed | **Built**; needs a compile check in TradingView | Matches the Python reference bar for bar |
-| R | Research foundation: VFI reference, validation statistics, E01 diagnostics, E02 overfitting study | **Built** | — |
-| 1 | `pine/volume_flow_v2.pine` and shared core: Volume Flow v2 (pane) | **Built**; 27 unit tests pass; H2, H5–H7 pre-registered; compiles and runs in TradingView (confirmed by the owner, 9 Nov 2026); parity check on a real export pending | Parity on a real export |
-| 2 | `pine/trend_setups.pine`: trend engine, structure, AVWAP, RS, MTF table | **Built**; trend score sd 0.97–0.98 on shuffled returns (E04); needs a compile check | TrendScore ≈ N(0,1) on shuffled returns ✓ |
-| 3 | Setups S1–S3, risk, alerts, `pine/trend_setups_strategy.pine` | **Built**; the strategy is generated from the indicator and a test enforces sync; H1, H3, H8–H10 pre-registered | Identical signals in indicator and strategy ✓ (by construction) |
-| 4 | Validation on a stock universe per the protocol | **Blocked: needs a data source** (see Open decisions) | Acceptance criteria met |
-| 5 | `docs/05_playbook.md` per timeframe; v1.0 freeze | **Draft** | Owner sign-off after Phase 4 |
+| Phase | Deliverable | Status |
+|---|---|---|
+| 0 | VFI ported to Pine v6, defects D1–D8 fixed | Built; compile check pending |
+| R | Research toolkit: Pine-twin maths, backtests, overfitting statistics | Built; 94 tests pass |
+| 1 | Volume pane | **Rebuilt as Relative Volume** after E05/E08 (v1 "Volume Flow v2" compiled in TradingView on 9 Nov; the rebuild has not been compiled) |
+| 2–3 | Trend & Setups and its strategy version | **Rebuilt as v2** after E05–E09; compile check pending |
+| 4 | Validation on real stocks | **Done on daily bars** (E05–E09: four sets, about 1.7 million stock-days, 1999–2018). Result: no confirmed trading edge; one small confirmed regularity; the long-term trend works as a risk switch. See `06_validation_lite.md` |
+| 5 | Playbook | Rewritten for v2 (`05_playbook.md`) |
+
+## What is still open
+
+1. **Compile check** of the three changed scripts in TradingView, then a parity check on an export.
+2. **Intraday and weekly validation.** Needs 1h data (not in the public sets used).
+3. **A survivorship-free dataset** to trust absolute return levels and to re-test rule D.
+4. **Forward test:** log live D signals for three to six months before relying on them.
 
 ## Working assumptions
 
@@ -35,7 +40,5 @@ Adopted Nov 2026; change any of them at will.
 
 ## Open decisions
 
-1. TradingView plan. This sets indicators per chart, intrabar depth, `request.footprint()`
-   (Premium/Ultimate only), history depth and custom intervals (65/195-min).
-2. Data source for Phase 4 (see protocol §6).
-3. Target holding periods per timeframe. Proposal: 1h 1–3 days, 4h 3–10 days, D 2–8 weeks, W months.
+1. TradingView plan (indicators per chart, custom intervals such as 65 and 195 minutes).
+2. Whether to buy data for intraday and survivorship-free tests (see `02_research_protocol.md`, section 6).
