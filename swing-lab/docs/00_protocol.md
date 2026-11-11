@@ -203,3 +203,15 @@ Reason: three data sets turned out to begin or end at awkward places. Nothing ab
    timing of the day's extremes), as section 2.3 allows. Those dates lie inside the daily lockbox;
    no return of any trading rule was computed on them. Later 1-hour bars stay unread.
 5. **Kenneth French library** data are cut at 2022-12-30 (E02).
+
+### Amendment 2 - 12 Nov 2026 (after the validation run, before the lockbox)
+
+Section 3 said that only confirmed candidates go to the lockbox. The validation run confirmed no
+directional candidate. One, E1, had the predicted sign and a similar size in all three samples
+without reaching significance on validation. Rather than leave the question open, E1 is placed on
+the lockbox list as the single directional hypothesis, with its definition, horizon and sign
+unchanged, and the criterion fixed now: day-weighted one-sided p <= 0.05 (Student's t as in the
+validation run) AND event-weighted estimate with the predicted sign and one-sided p <= 0.10.
+If it passes, it is reported as "confirmed on the lockbox after missing significance on
+validation"; if it fails, it is removed. No other directional rule may be added to the list.
+Risk claims R2, R3, R4 and R6 go to the lockbox with their validation criteria unchanged.

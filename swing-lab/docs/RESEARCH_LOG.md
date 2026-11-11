@@ -287,3 +287,99 @@ Nothing above is evidence yet.
 
 **Trials so far** (all on development or context data): see `registry/`; validation looks: 0;
 lockbox: sealed.
+
+---
+
+## 2026-11-12 - Session 2, entry 5: audits, pre-registration, and the validation run
+
+**Correction to entry 4.** It said a truncation test "shows no candidate depends on future rows".
+The test proves that the indicator arithmetic is causal. It does not cover the data build, where
+the auditor found one flag that used the next bar (fixed below).
+
+### Independent audits (two agents, development data only)
+
+- **Code** (`docs/_raw/audit_code.md`): an independent pandas re-implementation of the universe,
+  the volatility estimate, the forward return and four candidates reproduced the logged numbers to
+  0.1 bp with identical event counts. One blocker: nine closed-market dates in the calendar (one in
+  the validation window, 17 Feb 2020) that switched off volume-based signals for weeks. Fixed by
+  rebuilding the panel on days on which SPY has a bar; E1 fell from +56.7 bp (t 2.07) to +47.1 bp
+  (t 1.84), the figure the auditor had obtained independently.
+- **Statistics** (`docs/_raw/audit_stats.md`): the day-weighted statistic flatters; weighting each
+  event equally halves most effects. Between 2 and 5 of the 14 candidates were expected to be
+  selection noise from about 63,000 cells. To a trader who already selects trending stocks, all the
+  "avoid" states together were worth about 1 bp per position. Recommendation adopted: test seven,
+  require both weightings, add margins to the risk criteria.
+
+### Pre-registration
+
+`docs/03_preregistration_val.md`, final at commit `e3c9f18`, pushed before the run.
+
+### Result of the single validation run (2 Jul 2018 - 30 Dec 2022, survivorship-free, 1,456 names a day)
+
+Executed once on 12 Nov 2026 (`research/results/val_confirmation.json`; the runner now refuses to
+run again).
+
+**Directional candidates: none confirmed.**
+
+| ID | h | Predicted | Development, day-weighted bp (t) | Validation, day-weighted bp (t) | Validation, event-weighted bp (t) | Verdict |
+|---|---|---|---|---|---|---|
+| E1 gap up on volume, strong close | 10 | + | +47 (1.8) | +68 (1.7), p 0.048, Holm bar 0.007 | +40 (1.0) | right sign, not significant |
+| A1 fall >= 3 sigma on volume | 20 | - | -49 (-2.7) | +3 (0.1) | -6 (-0.2) | wrong sign |
+| A2 bounce below the 200-day | 10 | - | -30 (-2.4) | +7 (0.3) | -17 (-0.8) | wrong sign |
+| A3 unfilled gap up | 5 | - | -16 (-3.5) | -4 (-0.4) | -8 (-0.8) | right sign, not significant |
+| A4 gap down, weak close | 20 | - | -37 (-3.6) | +28 (1.1) | +2 (0.1) | wrong sign |
+| A5 overnight-driven rally | 5 | - | -23 (-2.3) | -2 (-0.1) | -2 (-0.1) | right sign, not significant |
+| A8 up 1-2 sigma in 3 bars | 5 | - | -10 (-3.6) | -12 (-1.2) | -8 (-1.1) | right sign, not significant |
+
+- Global test of the six avoid states: mean sign-adjusted t = 0.03, bootstrap p = 0.45. **The avoid
+  family as a whole is not there.**
+- E1 net of protocol costs, event-weighted: +25 bp over 10 bars; 14.8 signals a month in the
+  universe. Excluding names that stopped trading within 126 bars (descriptive): +49 bp (t 1.4).
+- Diagnostics: A9 (4 ATR below the 50-day) +37 bp (t 0.7); E3 (negative skew) -62 bp (t -1.5).
+
+**Risk engine: four of seven claims passed.**
+
+| Claim | Validation | Criterion | Result |
+|---|---|---|---|
+| R1 ATR forecast beats EWMA(20) and Yang-Zhang(20), h = 10 | QLIKE 0.720 against 0.846 and 0.787: 15% and 9% lower; t 1.74 and 4.3; better in 3 of 4 and 4 of 4 blocks; lower at h = 5 and 20 | t >= 2.33 against each | **fail** (against EWMA the difference is large but not significant) |
+| R1b the constant 0.757 | refitted 0.879 | 0.68 to 0.83 | **fail** |
+| R2 range calibration | 5% / 95% quantiles -1.68 / +1.40; coverage of the development band 89.9% pooled; 87.8%, 89.6%, 92.3% by volatility tercile; 89.9%, 87.2%, 91.3%, 90.8% by block | bands and coverage ranges | **pass** |
+| R3 stop-out table | largest difference from development 1.7 points over 18 cells (2 ATR, 10 bars: 33.2% against 31.5%); 15.9% of stop exits gapped through; 0.81% of trades worse than -1.5R; worst -11.9R | <= 4 points; 8-20%; <= 1.92% | **pass** |
+| R4 earnings gap risk | gap worse than -2 ATR: 7.5% on 24,376 reaction bars against 0.157% on ordinary nights, a ratio of 48; worse than -1 ATR 17.0%; worse than -3 ATR 3.5% | ratio >= 20 | **pass** |
+| R5 stops cost return | net bp per bar: no stop 1.95; 2-ATR stop 1.39; exit under the 20-day average 0.94; **3-ATR stop 2.24** | both differences significant | **fail** (right direction, p 0.33 and 0.34; a wide stop did not cost anything) |
+| R6 market state | SPY volatility 14.9% a year above its 200-day average, 33.0% below (ratio 2.2); mean daily return +2.1 bp above, +5.0 bp below; stocks losing 10% in 20 bars: 14.7% above, 15.6% below | ratio >= 1.5, tail higher | **pass** |
+
+### Reading
+
+1. **No directional signal survived.** Seven candidates that held their sign across two decades of
+   development data, several with t-statistics beyond 3, came out at zero on fresh data that
+   includes the companies that later disappeared. Three had the wrong sign. This is what the
+   audits predicted and what the protocol exists to catch. A1, A4 and A2, the "falling knives keep
+   falling" group, are the clearest casualties: in 2018-2022 shocked stocks did not go on
+   underperforming.
+2. **E1 is the only directional idea still standing, as "suggestive".** Same sign and similar size
+   in three samples (+47, +89, +68 bp over 10 bars), about +25 bp after costs in validation, not
+   significant there (and one more disappointment would end it).
+3. **What is demonstrated out of sample is about risk, not direction:** how far a stock moves
+   over 10 bars in ATR units (the 90% band covered 89.9%), how often a stop k ATR away is hit by
+   noise (within 1.7 points of the development table), how much more dangerous an earnings night
+   is (48 times), and that the market is more than twice as volatile below its 200-day average
+   with no lower mean return.
+4. **Two development "findings" about risk were overstated.** The constant that turns ATR into a
+   volatility forecast is not stable (0.757 against 0.879 when refitted); what is stable is the
+   quantile calibration, so the product uses quantiles and never quotes a "sigma". And "stops cost
+   return" is not shown: tight stops and moving-average exits still earned less per bar, without
+   significance, and a 3-ATR stop earned slightly more than no stop.
+
+**Status of every idea after validation**
+
+| Idea | Status |
+|---|---|
+| Range calibration in ATR units (R2), stop-out odds (R3), earnings gap risk (R4), market state as a risk state (R6) | passed validation; go to the lockbox |
+| E1 gap up on volume with a strong close | suggestive; goes to the lockbox as the single directional question (protocol amendment 2) |
+| ATR better than other volatility estimates (R1) | suggestive (better in every horizon and nearly every block, criterion missed) |
+| Tight stops and moving-average exits lower return (R5) | suggestive at most; "wide stops cost nothing" is as far as the data go |
+| A1, A2, A3, A4, A5, A8 avoid states | not confirmed; removed from the product |
+| Dip buying, breakouts, volume signals, momentum/52-week-high selection, squeeze, trend age, CUSUM, variance ratios, calendar | dead on development data (entry 4) |
+
+**Trials:** 63,796 in total, of which 20 on validation data (one run). Lockbox: sealed.
