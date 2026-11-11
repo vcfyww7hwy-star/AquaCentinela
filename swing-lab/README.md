@@ -54,7 +54,7 @@ registry/        trials*.jsonl, lockbox.json
 cd swing-lab
 python tools/pine_compile.py pine/sl_risk_desk.pine pine/sl_odds_check.pine
 python tools/parity_check.py self AAPL NVDA GE KO --k 3 --hold 10
-python -m pytest research/tests -q
+python -m research.tests.test_no_lookahead && python -m research.tests.test_delisting
 ```
 
 Data are not in the repository (`research/data_build/` rebuilds them from DoltHub, Yahoo, the
