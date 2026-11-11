@@ -78,7 +78,6 @@ class Panel:
         u = (np.asarray(self.adv60) >= adv_min) & (np.asarray(self.c_raw) >= px_min)
         u &= self.type_mask(types)[None, :]
         u &= np.isfinite(np.asarray(self.c))
-        u &= np.asarray(self.bad) == 0
         return u
 
     def half(self, which: str) -> np.ndarray:

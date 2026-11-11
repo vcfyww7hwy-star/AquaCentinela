@@ -31,14 +31,14 @@ REASONS = {0: "stop", 1: "gap_stop", 2: "target", 3: "time", 4: "signal", 5: "de
 
 @njit(cache=True)
 def _sim(o, h, l, c, div, atr, sig, exit_sig, last, cause, stop_k, trail_k, target_r, max_hold,
-         cost, stop_extra, haircut, row_lo, row_hi):
+         cost, stop_extra, haircut, row_lo, row_hi, entry_hi):
     T, N = c.shape
     cap = 64
     out = np.empty((cap, 9))
     n_out = 0
     for n in range(N):
         t = row_lo
-        while t < row_hi:
+        while t < entry_hi:
             if not sig[t, n] or t + 1 >= T or np.isnan(o[t + 1, n]) or np.isnan(atr[t, n]) or atr[t, n] <= 0:
                 t += 1
                 continue
@@ -61,6 +61,10 @@ def _sim(o, h, l, c, div, atr, sig, exit_sig, last, cause, stop_k, trail_k, targ
             pending_signal_exit = False
             d = e
             while True:
+                if d >= row_hi and d <= last[n]:
+                    # the sample ended with the position open: mark it and drop it later
+                    x, exit_px, reason = row_hi - 1, entry, 6
+                    break
                 if d > last[n] or d >= T:
                     # security stopped trading (or the panel ended) while in the position
                     x = min(last[n], T - 1)
@@ -135,10 +139,13 @@ def simulate(P: E.Prepared, sig: np.ndarray, atr: np.ndarray, *, rows: np.ndarra
     out-of-sample price is read."""
     r = np.flatnonzero(rows)
     row_lo, row_hi = int(r[0]), int(r[-1]) + 1
+    # entries stop early enough for a full holding period to fit inside the sample; otherwise the
+    # last entries would keep their stop-outs and lose their survivors
+    entry_hi = row_hi - (int(max_hold) if max_hold > 0 else 0) - 1
     ex = np.zeros(sig.shape, dtype=np.bool_) if exit_sig is None else exit_sig.astype(np.bool_)
     res = _sim(P.o, P.h, P.l, P.c, np.nan_to_num(_div_of(P)), atr, sig.astype(np.bool_), ex,
                P.last.astype(np.int64), P.cause.astype(np.bool_), float(stop_k), float(trail_k),
-               float(target_r), int(max_hold), cost_bp / 1e4, stop_extra_bp / 1e4, float(haircut), row_lo, row_hi)
+               float(target_r), int(max_hold), cost_bp / 1e4, stop_extra_bp / 1e4, float(haircut), row_lo, row_hi, entry_hi)
     df = pd.DataFrame(res, columns=["col", "entry", "exit", "ret", "R", "mae", "mfe", "bars", "reason"])
     for k in ("col", "entry", "exit", "bars", "reason"):
         df[k] = df[k].astype(int)

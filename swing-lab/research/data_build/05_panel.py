@@ -45,7 +45,16 @@ def main() -> None:
 
     E = pd.read_parquet(mdir / "merged_entities.parquet")
     M = pd.read_parquet(mdir / "merged_daily.parquet")
-    dates = np.sort(M["date"].unique())
+    # Calendar = days on which the market was open, judged by SPY having a bar. The two sources
+    # disagree on a few holidays (DoltHub carries stale bars on them); a row without the market
+    # would be a hole for every Yahoo-sourced security and would disable 20- and 50-bar volume
+    # windows for weeks (code audit B1, 12 Nov 2026).
+    spy_mid = int(E.loc[E["mid"] == "Y:SPY", "mid_code"].iloc[0])
+    open_days = np.sort(M.loc[M["mid"] == spy_mid, "date"].unique())
+    n_before = M["date"].nunique()
+    M = M[M["date"].isin(open_days)]
+    dates = open_days
+    print(f"calendar: {len(dates)} market days kept, {n_before - len(dates)} closed-market dates dropped")
     T, N0 = len(dates), len(E)
     r = np.searchsorted(dates, M["date"].to_numpy())
     k = M["mid"].to_numpy()

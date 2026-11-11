@@ -42,7 +42,9 @@ def main() -> None:
     E = E[E["src"] == "yahoo"].set_index("symbol")
     Y = Y[Y["sym"].isin(E.index)]
 
-    dates = np.sort(Y["date"].unique())
+    open_days = np.sort(Y.loc[Y["sym"] == "SPY", "date"].unique())      # market-open calendar (audit B1)
+    Y = Y[Y["date"].isin(open_days)]
+    dates = open_days
     syms = np.sort(Y["sym"].unique())
     r = np.searchsorted(dates, Y["date"].to_numpy())
     k = np.searchsorted(syms, Y["sym"].to_numpy())

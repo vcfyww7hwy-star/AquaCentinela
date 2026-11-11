@@ -38,7 +38,7 @@ class Feat:
             self.on = np.log(self.o / pc)                       # overnight log return
             self.intr = np.log(c / self.o)                      # intraday log return
             self.gz = self.on / volp                            # opening gap in sigma units
-            self.relv = self.v / ta.shift(ta.median(self.v, 20), 1)   # volume / median of the previous 20 bars
+            self.relv = self.v / ta.shift(ta.median_tol(self.v, 20, 15), 1)   # volume / median of the previous 20 bars (>= 15 present)
             self.loc = (c - self.l) / np.maximum(self.h - self.l, 1e-12)
         self.s50, self.s200 = ta.sma(c, 50), ta.sma(c, 200)
         self.up = c > self.s200
@@ -75,11 +75,18 @@ def tug_of_war(F):         # A5
     return F.U & (con20 >= 0.05) & (cin20 <= -0.05), None
 
 
+def _first_break(c, n):
+    """First close above the prior n-bar closing high in 10 bars; the high must have existed for
+    those 10 bars (otherwise the first bar with a defined high would always count as 'first')."""
+    prev_hi = ta.shift(ta.highest(c, n), 1)
+    brk = c > prev_hi
+    first = brk & (ta.rolling_sum(ta.shift(brk, 1).astype(float), 10) == 0) & np.isfinite(ta.shift(prev_hi, 10))
+    return first, prev_hi
+
+
 def failed_breakout(F):    # A6
-    prev_hi = ta.shift(ta.highest(F.c, 55), 1)
-    brk = F.c > prev_hi
-    first = brk & (ta.rolling_sum(ta.shift(brk.astype(float), 1), 10) == 0)
-    return F.U & ta.shift(first.astype(float), 2).astype(bool) & (F.c < ta.shift(prev_hi, 2)), None
+    first, prev_hi = _first_break(F.c, 55)
+    return F.U & ta.shift(first, 2) & (F.c < ta.shift(prev_hi, 2)), None
 
 
 def junk(F):               # A7
@@ -95,25 +102,26 @@ def stretched_down(F):     # A9
 
 
 def high_on_volume(F):     # E2
-    prev_hi = ta.shift(ta.highest(F.c, 252), 1)
-    brk = F.c > prev_hi
-    first = brk & (ta.rolling_sum(ta.shift(brk.astype(float), 1), 10) == 0)
-    v50 = ta.shift(ta.sma(F.v, 50), 1)
+    first, prev_hi = _first_break(F.c, 252)
+    v50 = ta.shift(ta.sma_tol(F.v, 50, 40), 1)
     return F.U & first & (F.v >= 1.5 * v50), F.U & (F.c >= 0.97 * prev_hi)
 
 
+def _skew60(F):
+    """Textbook skewness of the last 60 daily log returns (all 60 must exist)."""
+    r = F.S.P.ret
+    m1, m2, m3 = ta.sma(r, 60), ta.sma(r * r, 60), ta.sma(r * r * r, 60)
+    var = m2 - m1 * m1
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return (m3 - 3 * m1 * m2 + 2 * m1 ** 3) / np.maximum(var, 1e-18) ** 1.5
+
+
 def neg_skew(F):           # E3
-    r = np.where(np.isfinite(F.S.P.ret), F.S.P.ret, 0.0)
-    m3 = ta.sma((r - ta.sma(r, 60)) ** 3, 60)
-    skew = m3 / np.maximum(ta.stdev(r, 60) ** 3, 1e-18)
-    return F.U & (skew <= -1), None
+    return F.U & (_skew60(F) <= -1), None
 
 
 def pos_skew(F):           # A10
-    r = np.where(np.isfinite(F.S.P.ret), F.S.P.ret, 0.0)
-    m3 = ta.sma((r - ta.sma(r, 60)) ** 3, 60)
-    skew = m3 / np.maximum(ta.stdev(r, 60) ** 3, 1e-18)
-    return F.U & (skew >= 1), None
+    return F.U & (_skew60(F) >= 1), None
 
 
 def spike_in_downtrend(F):  # A11
@@ -122,7 +130,7 @@ def spike_in_downtrend(F):  # A11
 
 SPEC = {
     "E1_episodic_pivot": dict(fn=ep, h=10, sign=+1, use="enter",
-                              pine="gap=(open-close[1])/close[1]/sigma[1] >= 3 and volume/median(volume,20)[1] >= 3 and (close-low)/(high-low) >= 2/3"),
+                              pine="math.log(open/close[1])/sigma[1] >= 3 and volume/ta.median(volume,20)[1] >= 3 and (close-low)/(high-low) >= 2/3"),
     "E2_252high_on_volume": dict(fn=high_on_volume, h=5, sign=+1, use="enter",
                                  pine="close > ta.highest(close,252)[1], first in 10 bars, volume >= 1.5*ta.sma(volume,50)[1]; control: within 3% of that high"),
     "E3_negative_skew": dict(fn=neg_skew, h=60, sign=+1, use="select", pine="skewness of the last 60 daily log returns <= -1"),

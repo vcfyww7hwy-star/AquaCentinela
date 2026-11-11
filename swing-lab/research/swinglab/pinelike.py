@@ -28,7 +28,10 @@ def shift(x: np.ndarray, k: int) -> np.ndarray:
     """x[k] in Pine notation: the value k bars ago."""
     if k == 0:
         return x
-    out = np.full(x.shape, np.nan)
+    if x.dtype == bool:                       # a boolean history is False before it exists
+        out = np.zeros(x.shape, dtype=bool)
+    else:
+        out = np.full(x.shape, np.nan)
     out[k:] = x[:-k]
     return out
 
@@ -156,3 +159,14 @@ def linreg_slope(x: np.ndarray, n: int) -> np.ndarray:
         wsum = (n - 1) * cs[t] - (c_tm1 - c_a)
         out[t] = (wsum - kbar * (cs[t] - base)) / den
     return np.where(np.isfinite(s), out, np.nan)
+
+
+def median_tol(x: np.ndarray, n: int, min_count: int) -> np.ndarray:
+    """Median of the last n rows that tolerates a few missing bars (at least min_count present).
+    TradingView has no row for a day without a bar, so its 20-bar window is 20 real bars; this is
+    the closest equivalent on a calendar grid."""
+    return bn.move_median(x, window=n, min_count=min_count, axis=0)
+
+
+def sma_tol(x: np.ndarray, n: int, min_count: int) -> np.ndarray:
+    return bn.move_mean(x, window=n, min_count=min_count, axis=0)

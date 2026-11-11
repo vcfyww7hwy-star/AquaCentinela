@@ -118,7 +118,7 @@ class Study:
 
     def mkt(self, h: int) -> np.ndarray:
         """SPY's forward return over the same window, [T]."""
-        return self.fwd(h)[:, self.spy] if False else E.fwd_ret_open(self.P, h)[:, self.spy]
+        return self.fwd(h)[:, self.spy]
 
     def ctx(self, symbol: str, field: str = "close") -> np.ndarray:
         """A market-context series from Yahoo (e.g. '^VIX', '^VIX3M', 'HYG', 'XLK'), aligned to
@@ -150,6 +150,7 @@ class Study:
     def gap(self) -> np.ndarray:
         g = E.overnight_gap(self.P)
         g[~self.rows] = np.nan
+        g[self._last_row] = np.nan            # its open belongs to the next sample
         return g
 
     # ------------------------------------------------------------------ evaluation
@@ -272,5 +273,4 @@ class _SubPanel:
         u = (self.adv60 >= adv_min) & (self.c_raw >= px_min)
         u &= self.ents["type"].isin(types).to_numpy()[None, :]
         u &= np.isfinite(self.c)
-        u &= self.bad == 0
         return u
