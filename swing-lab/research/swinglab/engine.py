@@ -177,21 +177,30 @@ def ewma(x: np.ndarray, alpha: float) -> np.ndarray:
     return out
 
 
-def vol_ewma(P: Prepared, span: int = 20) -> np.ndarray:
-    """Daily volatility forecast known at the close of t: sqrt of an EMA of squared log returns,
-    with each squared return capped at 25x the running estimate so one earnings gap does not
-    dominate (robust; computable in Pine)."""
+def vol_ewma(P: Prepared, span: int = 20, warm: int = 20, floor: float = 0.002) -> np.ndarray:
+    """Daily volatility forecast known at the close of t: sqrt of an EMA of squared log returns.
+
+    Robust to single shocks: after a warm-up of `warm` observations each squared return is capped
+    at 25x the running estimate (5 sigma), so one earnings gap does not dominate for weeks.
+    The running estimate used for the cap is floored at `floor`**2, otherwise a security whose
+    first returns are zero would get a zero estimate that can never recover. NaN until `warm`
+    observations exist. Computable in Pine with one var and ta-free arithmetic.
+    """
     alpha = 2.0 / (span + 1)
     r2 = P.ret ** 2
     out = np.full_like(r2, np.nan)
     state = np.full(r2.shape[1], np.nan)
+    cnt = np.zeros(r2.shape[1], dtype=np.int32)
+    f2 = floor * floor
     for t in range(r2.shape[0]):
         x = r2[t]
         ok = np.isfinite(x)
         seed = ok & ~np.isfinite(state)
-        capped = np.minimum(x, 25.0 * np.where(np.isfinite(state), state, x))
-        state = np.where(seed, x, np.where(ok, alpha * capped + (1 - alpha) * state, state))
-        out[t] = state
+        cap = 25.0 * np.maximum(np.where(np.isfinite(state), state, 0.0), f2)
+        xc = np.where(cnt >= warm, np.minimum(x, cap), x)
+        state = np.where(seed, x, np.where(ok, alpha * xc + (1 - alpha) * state, state))
+        cnt += ok
+        out[t] = np.where(cnt >= warm, np.maximum(state, f2), np.nan)
     return np.sqrt(out)
 
 

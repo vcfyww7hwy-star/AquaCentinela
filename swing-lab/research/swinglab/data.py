@@ -26,6 +26,7 @@ PARTITIONS = {
     "VAL": ("2018-07-02", "2022-12-30"),        # survivorship-free
     "LOCKBOX": ("2023-01-03", "2026-11-09"),    # sealed
     "POSTCUTOFF": ("2026-07-01", "2026-11-09"),  # inside the lockbox; after the model's knowledge ends
+    "CTX": ("1998-01-02", "2010-12-31"),        # context panel only: Yahoo survivors, strongly biased
 }
 FIELDS = ("o", "h", "l", "c", "v", "c_raw", "div", "adv60", "bad")
 STOCK_TYPES = ("common", "adr", "prior_use", "unknown")
@@ -88,6 +89,13 @@ def load_panel() -> Panel:
     d = PANEL_DIR / "devval"
     return Panel(dates=np.load(d / "dates.npy").astype("datetime64[D]"),
                  ents=pd.read_parquet(d / "ents.parquet"), name="devval", _dir=d)
+
+
+def load_ctx() -> Panel:
+    """Context panel 1997-2010 (survivors of 2026 only; first year is warm-up). Development use."""
+    d = PANEL_DIR / "ctx"
+    return Panel(dates=np.load(d / "dates.npy").astype("datetime64[D]"),
+                 ents=pd.read_parquet(d / "ents.parquet"), name="ctx", _dir=d)
 
 
 def open_lockbox(reason: str, frozen_rules: list[str]) -> Panel:
