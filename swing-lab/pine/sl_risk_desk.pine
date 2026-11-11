@@ -1,182 +1,295 @@
 //@version=6
-// SL Risk Desk  -  swing-lab
-// What it answers on any stock chart: how far can this move over my holding period, how many shares is my risk
-// budget, how likely is my stop to be hit by noise, is an earnings gap inside my holding window, and is the
-// market in its high-risk state.  It gives no buy or sell signal.
+// SL Risk Desk (swing-lab)
 //
-// Every number comes from research on US stocks (swing-lab/docs/RESEARCH_LOG.md):
-//   sigma_daily = 0.757 * ATR(14) / close      best of 30 volatility forecasts tested for the next 5-20 bars
-//   range quantiles and stop-out odds          measured on random entries, stable from 1998 to 2018
-//   earnings gap odds                          gap worse than -2 ATR: about 10% on the reaction bar, 0.1% otherwise
-//   market state                               SPY below its 200-day average: about twice the volatility, same mean
-// Status of each claim (development / validated / lockbox) is in the research log; see the playbook.
+// What it answers, for the stock on the chart: how many shares is my risk budget, where does a stop k ATR away
+// sit and how often is such a stop hit by noise, how far does the price usually travel over my holding period,
+// is an earnings report inside that period, and is the index in its high-volatility state.
+// It gives no buy or sell signal: in the research behind it (about 64,000 tests on US stocks, 1998-2026) no
+// chart rule that picks stocks or times entries survived out-of-sample testing.
 //
-// Non-repainting: on a daily chart values are final at the bar's close; on intraday charts the previous
-// completed day is used; alerts are sent once per bar close.
-indicator("SL Risk Desk", shorttitle = "SL Risk", overlay = true, max_lines_count = 50, max_labels_count = 50)
+// Evidence labels (swing-lab/docs/RESEARCH_LOG.md, entry 7):
+//   [D] demonstrated out of sample: frozen before, and passed on, data set aside for 2023-2026
+//   [S] suggestive: held on validation data, not confirmed on the set-aside data
+//   [U] untested: calibrated on all data, or follows from arithmetic
+//
+// All values come from DAILY bars. Daily chart: the chart's own bar, final at its close. Intraday chart: the
+// last completed day. Weekly or monthly chart: the last daily bar inside the chart bar. Alerts fire once, at a
+// bar's close.
+indicator("SL Risk Desk", shorttitle = "SL Risk Desk", overlay = true, max_lines_count = 20, max_labels_count = 20)
 
-// ───────────────────────────── inputs
-string G1 = "Your trade"
-float  i_equity  = input.float(100000.0, "Account equity", minval = 0.0, group = G1, tooltip = "In the chart's currency.")
-float  i_riskPct = input.float(0.75, "Risk per trade, % of equity", minval = 0.05, maxval = 5.0, step = 0.05, group = G1)
-float  i_stopK   = input.float(3.0, "Stop distance, in ATR(14)", minval = 0.5, maxval = 6.0, step = 0.25, group = G1,
-     tooltip = "Research: stops closer than about 3 ATR lowered the return per bar held; a stop is insurance against the tail, not a source of return.")
-int    i_hold    = input.int(10, "Planned holding period, bars", options = [5, 10, 20], group = G1)
+// ─────────────────────────────────────────────────────────────── inputs
+string G1 = "Plan"
+float  i_equity  = input.float(100000.0, "Account equity", minval = 0.0, group = G1, tooltip = "In the currency of the chart.")
+float  i_riskPct = input.float(0.75, "Risk per trade, % of equity", minval = 0.05, maxval = 5.0, step = 0.05, group = G1,
+     tooltip = "What you lose if the stop is filled at its price. About 1 trade in 100 loses more than 1.5 times this, because prices gap through stops.")
+float  i_stopK   = input.float(3.0, "Stop distance, in daily ATR(14)", minval = 1.0, maxval = 4.0, step = 0.25, group = G1,
+     tooltip = "Measured below the entry price. The odds table covers 1 to 4 ATR.")
+int    i_hold    = input.int(10, "Holding period, daily bars", options = [5, 10, 20], group = G1)
 float  i_maxPos  = input.float(20.0, "Largest position, % of equity", minval = 1.0, maxval = 100.0, group = G1)
 
-string G2 = "Market state"
-string i_mkt     = input.symbol("AMEX:SPY", "Market reference", group = G2)
-float  i_dialLow = input.float(50.0, "Exposure when the market is below its 200-day average, %", minval = 0.0, maxval = 100.0, group = G2)
+string G2 = "Open position (optional)"
+bool   i_inPos     = input.bool(false, "I hold this stock", group = G2)
+float  i_entryPx   = input.float(0.0, "Entry price", minval = 0.0, group = G2)
+float  i_stopHeld  = input.float(0.0, "Stop price", minval = 0.0, group = G2)
+int    i_entryTime = input.time(timestamp("2026-01-02T00:00:00"), "Entry date", group = G2)
 
-string G3 = "Display"
-bool   i_cone    = input.bool(true, "Draw the expected range for the holding period", group = G3)
-bool   i_stopLn  = input.bool(true, "Draw the stop level", group = G3)
-bool   i_table   = input.bool(true, "Show the table", group = G3)
-string i_pos     = input.string("top right", "Table position", options = ["top right", "bottom right", "top left", "bottom left"], group = G3)
+bool   i_planAlert = input.bool(false, "Alert: send the plan at each daily close", group = G1,
+     tooltip = "For a stock you intend to buy at the next open. Daily chart only. Create an alert on this indicator with the condition 'Any alert() function call'.")
 
-// ───────────────────────────── constants from the research (development data; see header)
-float SIGMA_PER_ATR = 0.757
-// quantiles of  ln(P[t+h] / open[t+1]) / (sigma_daily * sqrt(h))
-float Q05 = i_hold == 5 ? -1.53 : i_hold == 10 ? -1.56 : -1.57
-float Q25 = i_hold == 5 ? -0.49 : i_hold == 10 ? -0.48 : -0.47
-float Q75 = i_hold == 5 ?  0.60 : i_hold == 10 ?  0.64 :  0.69
-float Q95 = i_hold == 5 ?  1.45 : i_hold == 10 ?  1.48 :  1.52
+string G3 = "Market"
+string i_mkt = input.symbol("AMEX:SPY", "Index reference", group = G3)
 
-// probability that a stop k ATR below the entry is touched within h bars (random entries), k = 1, 1.5, 2, 2.5, 3, 4
+string G4 = "Display"
+bool   i_showTable = input.bool(true, "Table", group = G4)
+bool   i_showStop  = input.bool(true, "Stop level", group = G4)
+bool   i_showBand  = input.bool(true, "Range bands for the holding period", group = G4)
+string i_tablePos  = input.string("top right", "Table position", options = ["top right", "bottom right", "top left", "bottom left"], group = G4)
+
+if not chart.is_standard
+    runtime.error("SL Risk Desk: use a standard chart (candles, bars or line). Heikin Ashi, Renko and similar charts carry synthetic prices.")
+
+// ─────────────────────────────────────────────────────────────── constants [D]
+// Where the close lands h daily bars later: quantiles of  ln(close[t+h] / close[t]) / (ATR14[t] / close[t] * sqrt(h)).
+float Q05 = i_hold == 5 ? -1.23 : i_hold == 10 ? -1.26 : -1.28
+float Q25 = -0.40
+float Q75 = i_hold == 5 ?  0.45 : i_hold == 10 ?  0.47 :  0.49
+float Q95 = i_hold == 5 ?  1.10 : i_hold == 10 ?  1.10 :  1.11
+
+// Share of entries (at the next open) whose stop k x ATR(14) below the entry is hit within h daily bars.
 f_stopOdds(float k, int h) =>
-    array<float> ks = array.from(1.0, 1.5, 2.0, 2.5, 3.0, 4.0)
-    array<float> p5  = array.from(0.452, 0.285, 0.175, 0.106, 0.065, 0.027)
-    array<float> p10 = array.from(0.594, 0.439, 0.318, 0.226, 0.160, 0.082)
-    array<float> p20 = array.from(0.702, 0.574, 0.467, 0.375, 0.298, 0.185)
-    array<float> p = h == 5 ? p5 : h == 10 ? p10 : p20
-    float kk = math.max(1.0, math.min(4.0, k))
-    float res = na
+    array<float> ks  = array.from(1.0, 1.5, 2.0, 2.5, 3.0, 4.0)
+    array<float> p5  = array.from(0.458, 0.288, 0.176, 0.107, 0.066, 0.028)
+    array<float> p10 = array.from(0.599, 0.445, 0.324, 0.233, 0.165, 0.083)
+    array<float> p20 = array.from(0.710, 0.584, 0.475, 0.381, 0.303, 0.188)
+    array<float> p   = h == 5 ? p5 : h == 10 ? p10 : p20
+    float kk  = math.max(1.0, math.min(4.0, k))
+    float res = p.get(5)
     for i = 0 to 4
         float k0 = ks.get(i)
         float k1 = ks.get(i + 1)
         if kk >= k0 and kk <= k1
             res := p.get(i) + (p.get(i + 1) - p.get(i)) * (kk - k0) / (k1 - k0)
+            break
     res
 
-// ───────────────────────────── daily inputs, without repainting
-// Daily chart: the chart's own bar, final at its close.  Intraday chart: the previous completed day.
-// Weekly or monthly chart: the last daily bar inside the chart bar.
-float atrD_prev   = request.security(syminfo.tickerid, "D", ta.atr(14)[1], lookahead = barmerge.lookahead_on)
-float closeD_prev = request.security(syminfo.tickerid, "D", close[1], lookahead = barmerge.lookahead_on)
-float atrD_last   = request.security(syminfo.tickerid, "D", ta.atr(14))
-float closeD_last = request.security(syminfo.tickerid, "D", close)
-float atrChart    = ta.atr(14)
+// Earnings night: opening gap against the holder, in daily ATR(14). The multiple over an ordinary night is [D]
+// (at least 20 times; measured 48 times in 2018-22 and 104 times in 2023-26). The odds are [U]: all reports
+// 2017-2026; by year they range from 15% to 27%, 5% to 15% and 3% to 8%.
+float E_GAP1 = 0.20
+float E_GAP2 = 0.10
+float E_GAP3 = 0.05
 
-float atrD   = timeframe.isdaily ? atrChart : timeframe.isintraday ? atrD_prev : atrD_last
-float refD   = timeframe.isdaily ? close    : timeframe.isintraday ? closeD_prev : closeD_last
-float sigmaD = SIGMA_PER_ATR * atrD / refD                     // forecast of daily volatility, as a fraction
-float sigmaAnn = sigmaD * math.sqrt(252.0) * 100.0
+float UNIVERSE_DOLLAR_VOLUME = 20000000.0
+float UNIVERSE_PRICE         = 5.0
 
-// market state
-float mktClose_prev = request.security(i_mkt, "D", close[1], lookahead = barmerge.lookahead_on)
-float mktSma_prev   = request.security(i_mkt, "D", ta.sma(close, 200)[1], lookahead = barmerge.lookahead_on)
-float mktClose_last = request.security(i_mkt, "D", close)
-float mktSma_last   = request.security(i_mkt, "D", ta.sma(close, 200))
-float mktClose = timeframe.isintraday ? mktClose_prev : mktClose_last
-float mktSma   = timeframe.isintraday ? mktSma_prev : mktSma_last
-bool  mktUp    = mktClose > mktSma
-float dial     = mktUp ? 100.0 : i_dialLow
+// ─────────────────────────────────────────────────────────────── daily core
+f_core() =>
+    float a  = ta.atr(14)
+    float c  = close
+    float dv = ta.median(close * volume, 60)
+    // this symbol's own record: where did the close land h bars after each band was drawn?
+    float y    = math.log(c / c[i_hold]) / (a[i_hold] / c[i_hold] * math.sqrt(i_hold))
+    bool  have = not na(y)
+    float n    = ta.cum(have ? 1.0 : 0.0)
+    float in90 = ta.cum(have and y >= Q05 and y <= Q95 ? 1.0 : 0.0)
+    float in50 = ta.cum(have and y >= Q25 and y <= Q75 ? 1.0 : 0.0)
+    // and how often was a stop k ATR below the next open hit within h bars?
+    float lowest  = ta.lowest(low, i_hold)
+    float stopLvl = open[i_hold - 1] - i_stopK * a[i_hold]
+    bool  haveS   = not na(stopLvl)
+    float nS      = ta.cum(haveS ? 1.0 : 0.0)
+    float hits    = ta.cum(haveS and lowest <= stopLvl ? 1.0 : 0.0)
+    float held    = ta.cum(i_inPos and time >= i_entryTime ? 1.0 : 0.0)
+    [a, c, dv, n, in90, in50, nS, hits, held]
 
-// ───────────────────────────── the trade
-float px       = close
-float stopDist = i_stopK * atrD
-float stopPx   = px - stopDist
-float riskCash = i_equity * i_riskPct / 100.0
+f_prev() =>
+    [a, c, dv, n, in90, in50, nS, hits, held] = f_core()
+    [a[1], c[1], dv[1], n[1], in90[1], in50[1], nS[1], hits[1], held[1]]
+
+f_mkt() =>
+    float m = ta.sma(close, 200)
+    [close, m]
+
+f_mktPrev() =>
+    [c, m] = f_mkt()
+    [c[1], m[1]]
+
+int    tfSec   = timeframe.in_seconds()
+bool   isDaily = tfSec == 86400
+bool   isIntra = tfSec < 86400
+string symD    = ticker.modify(syminfo.tickerid, session.regular)
+
+[a0, c0, dv0, n0, in90_0, in50_0, nS0, hits0, held0] = f_core()
+[a1, c1, dv1, n1, in90_1, in50_1, nS1, hits1, held1] = request.security(symD, "1D", f_prev(), lookahead = barmerge.lookahead_on)
+[a2, c2, dv2, n2, in90_2, in50_2, nS2, hits2, held2] = request.security(symD, "1D", f_core())
+
+float atrD   = isDaily ? a0     : isIntra ? a1     : a2
+float closeD = isDaily ? c0     : isIntra ? c1     : c2
+float dvMed  = isDaily ? dv0    : isIntra ? dv1    : dv2
+float nAud   = isDaily ? n0     : isIntra ? n1     : n2
+float in90   = isDaily ? in90_0 : isIntra ? in90_1 : in90_2
+float in50   = isDaily ? in50_0 : isIntra ? in50_1 : in50_2
+float nStop  = isDaily ? nS0    : isIntra ? nS1    : nS2
+float hits   = isDaily ? hits0  : isIntra ? hits1  : hits2
+float held   = isDaily ? held0  : isIntra ? held1  : held2
+
+[mc1, mm1] = request.security(i_mkt, "1D", f_mktPrev(), lookahead = barmerge.lookahead_on)
+[mc2, mm2] = request.security(i_mkt, "1D", f_mkt())
+float mktClose = isIntra ? mc1 : mc2
+float mktAvg   = isIntra ? mm1 : mm2
+bool  mktKnown = not na(mktClose) and not na(mktAvg)
+bool  mktUp    = mktKnown and mktClose > mktAvg
+
+// ─────────────────────────────────────────────────────────────── the plan
+float px        = close
+float stopDist  = i_stopK * atrD
+float stopPx    = px - stopDist
+float riskCash  = i_equity * i_riskPct / 100.0
 float sharesRaw = stopDist > 0 ? riskCash / stopDist : na
-float sharesCap = i_equity * i_maxPos / 100.0 / px
-float shares   = math.floor(math.min(sharesRaw, sharesCap))
-float posValue = shares * px
-float posPct   = i_equity > 0 ? 100.0 * posValue / i_equity : na
-bool  capped   = sharesRaw > sharesCap
-float pStop    = f_stopOdds(i_stopK, i_hold)
+float sharesCap = px > 0 ? i_equity * i_maxPos / 100.0 / px : na
+float shares    = math.floor(math.min(sharesRaw, sharesCap))
+bool  capped    = sharesRaw > sharesCap
+float posValue  = shares * px
+float posPct    = i_equity > 0 ? 100.0 * posValue / i_equity : na
+float riskTaken = shares * stopDist
+float pStop     = f_stopOdds(i_stopK, i_hold)
 
-// expected range from the current price over the holding period
-float sd_h = sigmaD * math.sqrt(i_hold)
-float lo05 = px * math.exp(Q05 * sd_h)
-float lo25 = px * math.exp(Q25 * sd_h)
-float hi75 = px * math.exp(Q75 * sd_h)
-float hi95 = px * math.exp(Q95 * sd_h)
+float unit = atrD / closeD * math.sqrt(i_hold)          // one unit of the band scale, as a log return
+float lo05 = px * math.exp(Q05 * unit)
+float lo25 = px * math.exp(Q25 * unit)
+float hi75 = px * math.exp(Q75 * unit)
+float hi95 = px * math.exp(Q95 * unit)
+float rLo05 = Q05 * math.sqrt(i_hold) / i_stopK         // the same lines in units of the risk taken (R), to first order
+float rHi95 = Q95 * math.sqrt(i_hold) / i_stopK
 
-// ───────────────────────────── earnings
-// earnings.future_time: time of the next scheduled report (fetched when the script loads).
-int   nextE     = earnings.future_time
-float daysToE   = na(nextE) ? na : (nextE - time_close) / 86400000.0
-float sessToE   = na(daysToE) ? na : math.max(0.0, math.round(daysToE * 5.0 / 7.0))     // approximate trading sessions
-bool  eInWindow = not na(sessToE) and sessToE <= i_hold
-float epsRep    = request.earnings(syminfo.tickerid, earnings.actual, gaps = barmerge.gaps_on, ignore_invalid_symbol = true)
-bool  eBar      = not na(epsRep)
-int   barsSinceE = ta.barssince(eBar)
+float cov90   = nAud > 0 ? 100.0 * in90 / nAud : na
+float cov50   = nAud > 0 ? 100.0 * in50 / nAud : na
+float covStop = nStop > 0 ? 100.0 * hits / nStop : na
 
-// ───────────────────────────── drawings (last bar only)
-var line lStop = na
-var line l05 = na
-var line l25 = na
-var line l75 = na
-var line l95 = na
-var label lbCone = na
+bool isStock    = syminfo.type == "stock" or syminfo.type == "dr"
+bool inUniverse = isStock and dvMed >= UNIVERSE_DOLLAR_VOLUME and closeD >= UNIVERSE_PRICE
+
+// ─────────────────────────────────────────────────────────────── earnings
+// earnings.future_time is read when the script loads. An alert created today knows the next report only.
+int   nextE    = earnings.future_time
+float daysToE  = na(nextE) ? na : (nextE - time_close) / 86400000.0
+bool  eKnown   = not na(daysToE) and daysToE > -1.0
+float sessToE  = eKnown ? math.max(0.0, math.round(daysToE * 5.0 / 7.0)) : na      // calendar days to sessions, approximate
+bool  eInside  = eKnown and sessToE <= i_hold
+
+// ─────────────────────────────────────────────────────────────── open position
+bool  posOn    = i_inPos and i_entryPx > 0 and i_stopHeld > 0 and i_stopHeld < i_entryPx and time >= i_entryTime
+float riskPS   = i_entryPx - i_stopHeld
+float rNow     = posOn ? (close - i_entryPx) / riskPS : na
+bool  stopHit  = posOn and low <= i_stopHeld
+bool  timeUp   = posOn and held >= i_hold
+
+// ─────────────────────────────────────────────────────────────── alerts (once, at the bar's close)
+if barstate.isconfirmed
+    if mktKnown and mktKnown[1] and mktUp != mktUp[1]
+        alert(str.format("{0}: closed {1} its 200-day average. Index volatility has been about twice as high below it [S].",
+             syminfo.ticker(i_mkt), mktUp ? "ABOVE" : "BELOW"), alert.freq_once_per_bar_close)
+    if eInside and not eInside[1]
+        alert(str.format("{0}: earnings report in about {1} sessions, inside a {2}-bar holding period. About 1 report in 10 gaps more than 2 ATR against the holder.",
+             syminfo.ticker, str.tostring(sessToE, "#"), str.tostring(i_hold)), alert.freq_once_per_bar_close)
+    if i_planAlert and isDaily and not i_inPos and not na(shares)
+        alert(str.format("{0} plan for the next open: {1} shares, stop {2} below the fill (about {3}), hit within {4} bars {5}% of the time. 90% band {6} to {7}. Earnings: {8}. {9}",
+             syminfo.ticker, str.format("{0,number,integer}", shares), str.tostring(stopDist, format.mintick), str.tostring(stopPx, format.mintick), str.tostring(i_hold),
+             str.tostring(100.0 * pStop, "#"), str.tostring(lo05, format.mintick), str.tostring(hi95, format.mintick),
+             not eKnown ? "no date on file" : eInside ? "INSIDE the holding period, in about " + str.tostring(sessToE, "#") + " sessions" : "outside the holding period",
+             inUniverse ? "" : "Outside the tested universe."), alert.freq_once_per_bar_close)
+    if stopHit
+        alert(str.format("{0}: traded at or below your stop {1}. Position at {2} R.", syminfo.ticker, str.tostring(i_stopHeld, format.mintick),
+             str.tostring(rNow, "#.##")), alert.freq_once_per_bar_close)
+    if timeUp and not timeUp[1]
+        alert(str.format("{0}: {1} daily bars held, the planned holding period is complete. Position at {2} R.", syminfo.ticker,
+             str.tostring(held, "#"), str.tostring(rNow, "#.##")), alert.freq_once_per_bar_close)
+
+// ─────────────────────────────────────────────────────────────── drawings (last bar)
+var line   lnStop = na
+var line   ln05   = na
+var line   ln25   = na
+var line   ln75   = na
+var line   ln95   = na
+var label  lb05   = na
+var label  lb95   = na
 if barstate.islast
-    line.delete(lStop), line.delete(l05), line.delete(l25), line.delete(l75), line.delete(l95), label.delete(lbCone)
-    if i_stopLn
-        lStop := line.new(bar_index - 5, stopPx, bar_index + i_hold, stopPx, color = color.new(color.red, 20), style = line.style_dashed, width = 2)
-    if i_cone and timeframe.isdaily
-        l05 := line.new(bar_index, px, bar_index + i_hold, lo05, color = color.new(color.gray, 30))
-        l95 := line.new(bar_index, px, bar_index + i_hold, hi95, color = color.new(color.gray, 30))
-        l25 := line.new(bar_index, px, bar_index + i_hold, lo25, color = color.new(color.gray, 55), style = line.style_dotted)
-        l75 := line.new(bar_index, px, bar_index + i_hold, hi75, color = color.new(color.gray, 55), style = line.style_dotted)
-        lbCone := label.new(bar_index + i_hold, hi95, "90% range in " + str.tostring(i_hold) + " bars", style = label.style_label_left,
-             color = color.new(color.gray, 85), textcolor = color.gray, size = size.small)
+    line.delete(lnStop), line.delete(ln05), line.delete(ln25), line.delete(ln75), line.delete(ln95), label.delete(lb05), label.delete(lb95)
+    int span = isDaily ? i_hold : 12
+    if i_showStop
+        float s = posOn ? i_stopHeld : stopPx
+        lnStop := line.new(bar_index - 3, s, bar_index + span, s, color = color.new(color.red, 10), style = line.style_dashed, width = 2)
+    if i_showBand and not na(lo05)
+        color cOuter = color.new(color.gray, 25)
+        color cInner = color.new(color.gray, 55)
+        int   x0 = bar_index
+        int   x1 = bar_index + span
+        // on a daily chart the lines run from today's close to the band h bars ahead; elsewhere they mark the levels
+        ln05 := line.new(x0, isDaily ? px : lo05, x1, lo05, color = cOuter)
+        ln95 := line.new(x0, isDaily ? px : hi95, x1, hi95, color = cOuter)
+        ln25 := line.new(x0, isDaily ? px : lo25, x1, lo25, color = cInner, style = line.style_dotted)
+        ln75 := line.new(x0, isDaily ? px : hi75, x1, hi75, color = cInner, style = line.style_dotted)
+        lb95 := label.new(x1, hi95, "95%  " + str.tostring(hi95, format.mintick), style = label.style_label_left, color = color.new(color.gray, 100),
+             textcolor = color.gray, size = size.small)
+        lb05 := label.new(x1, lo05, "5%  " + str.tostring(lo05, format.mintick), style = label.style_label_left, color = color.new(color.gray, 100),
+             textcolor = color.gray, size = size.small)
 
-// ───────────────────────────── table
-f_pos(string s) =>
+// ─────────────────────────────────────────────────────────────── table (last bar)
+f_tablePos(string s) =>
     s == "top right" ? position.top_right : s == "bottom right" ? position.bottom_right : s == "top left" ? position.top_left : position.bottom_left
 
-var table tb = table.new(f_pos(i_pos), 2, 12, border_width = 1, border_color = color.new(color.gray, 70))
+var table tb = table.new(f_tablePos(i_tablePos), 2, 12, border_width = 1, border_color = color.new(color.gray, 75))
+
 f_row(int r, string k, string v, color c) =>
     table.cell(tb, 0, r, k, text_halign = text.align_left, text_size = size.small, text_color = color.gray)
-    table.cell(tb, 1, r, v, text_halign = text.align_right, text_size = size.small, text_color = c)
+    table.cell(tb, 1, r, v, text_halign = text.align_left, text_size = size.small, text_color = c)
 
-if barstate.islast and i_table
-    color cOk = chart.fg_color
+if barstate.islast and i_showTable
+    color cText = chart.fg_color
     color cWarn = color.orange
-    color cBad = color.red
-    f_row(0, "Volatility forecast", str.tostring(sigmaD * 100.0, "#.##") + "% a day  (" + str.tostring(sigmaAnn, "#") + "% a year)", cOk)
-    f_row(1, "ATR(14), daily", str.tostring(atrD, format.mintick) + "  (" + str.tostring(100.0 * atrD / refD, "#.##") + "%)", cOk)
-    f_row(2, "90% range, " + str.tostring(i_hold) + " bars", str.tostring(lo05, format.mintick) + "  to  " + str.tostring(hi95, format.mintick), cOk)
-    f_row(3, "Middle half", str.tostring(lo25, format.mintick) + "  to  " + str.tostring(hi75, format.mintick), cOk)
-    f_row(4, "Stop  (" + str.tostring(i_stopK, "#.##") + " ATR)", str.tostring(stopPx, format.mintick) + "   -" + str.tostring(100.0 * stopDist / px, "#.#") + "%", cOk)
-    f_row(5, "Shares for " + str.tostring(i_riskPct, "#.##") + "% risk", str.tostring(shares, "#") + (capped ? "  (capped)" : ""), capped ? cWarn : cOk)
-    f_row(6, "Position", str.tostring(posValue, "#") + "   " + str.tostring(posPct, "#.#") + "% of equity", cOk)
-    f_row(7, "Stop hit by noise, " + str.tostring(i_hold) + " bars", str.tostring(100.0 * pStop, "#") + "% of random entries", pStop > 0.35 ? cWarn : cOk)
-    string eTxt = na(sessToE) ? "no date" : "in about " + str.tostring(sessToE, "#") + " sessions"
-    f_row(8, "Next earnings", eTxt, eInWindow ? cBad : cOk)
-    f_row(9, "Earnings inside the hold", eInWindow ? "YES: gap beyond -2 ATR about 1 in 10" : "no", eInWindow ? cBad : cOk)
-    f_row(10, "Market (" + syminfo.ticker(i_mkt) + " vs 200-day)", mktUp ? "above: normal risk" : "below: about twice the risk", mktUp ? cOk : cBad)
-    f_row(11, "Suggested exposure", str.tostring(dial, "#") + "% of normal", mktUp ? cOk : cWarn)
+    color cBad  = color.red
+    string hb   = str.tostring(i_hold) + " bars"
+    f_row(0, "Daily ATR(14)", str.tostring(atrD, format.mintick) + "   " + str.tostring(100.0 * atrD / closeD, "#.##") + "% of price", cText)
+    f_row(1, "Tested universe", inUniverse ? "inside" : isStock ? "OUTSIDE: under $5 or under $20M a day. Odds below were not tested here" :
+         "OUTSIDE: not a stock. Odds below were not tested here", inUniverse ? cText : cWarn)
+    f_row(2, "Stop  " + str.tostring(i_stopK, "#.##") + " ATR", str.tostring(stopPx, format.mintick) + "   " + str.tostring(100.0 * stopDist / px, "#.#") +
+         "% below.  Hit within " + hb + ": " + str.tostring(100.0 * pStop, "#") + "% [D]", cText)
+    f_row(3, "Size", str.format("{0,number,integer}", shares) + " shares   value " + str.format("{0,number,integer}", posValue) + "   " + str.tostring(posPct, "#.#") +
+         "% of equity" + (capped ? " (capped)" : "") + "   risk " + str.format("{0,number,integer}", riskTaken), capped ? cWarn : cText)
+    f_row(4, "90% band, " + hb, str.tostring(lo05, format.mintick) + "  to  " + str.tostring(hi95, format.mintick) + "   (" + str.tostring(rLo05, "#.##") +
+         " R to +" + str.tostring(rHi95, "#.##") + " R) [D]", cText)
+    f_row(5, "Middle half", str.tostring(lo25, format.mintick) + "  to  " + str.tostring(hi75, format.mintick) + " [D]", cText)
+    f_row(6, "This chart's record", nAud > 0 ? "90% band held " + str.tostring(cov90, "#.#") + "%, middle half " + str.tostring(cov50, "#.#") + "%, stop hit " +
+         str.tostring(covStop, "#.#") + "%   (" + str.tostring(nAud, "#") + " windows)" : "not enough history", cText)
+    f_row(7, "Earnings", not eKnown ? "no date on file" : "in about " + str.tostring(sessToE, "#") + " sessions: " + (eInside ? "INSIDE the holding period" :
+         "outside the holding period"), eInside ? cBad : cText)
+    f_row(8, "Earnings night", "gap against you beyond 1 / 2 / 3 ATR: about " + str.tostring(100.0 * E_GAP1, "#") + "% / " + str.tostring(100.0 * E_GAP2, "#") + "% / " +
+         str.tostring(100.0 * E_GAP3, "#") + "% [U];  beyond 2 ATR = " + str.tostring(-2.0 / i_stopK, "#.##") + " R before the stop can act", eInside ? cWarn : cText)
+    f_row(9, "Index", not mktKnown ? "no data" : mktUp ? syminfo.ticker(i_mkt) + " above its 200-day average" :
+         syminfo.ticker(i_mkt) + " BELOW its 200-day average: index about twice as volatile [S]", mktUp or not mktKnown ? cText : cWarn)
+    if i_inPos
+        f_row(10, "Position", posOn ? str.tostring(rNow, "#.##") + " R   day " + str.tostring(held, "#") + " of " + str.tostring(i_hold) + "   stop " +
+             str.tostring(i_stopHeld, format.mintick) + (timeUp ? "   HOLDING PERIOD COMPLETE" : "") : "enter the entry price, a stop below it and the entry date",
+             posOn and (timeUp or stopHit) ? cWarn : cText)
+    f_row(i_inPos ? 11 : 10, "", isDaily ? "daily values, final at the close" : isIntra ? "daily values of the last completed day" : "daily values of the last daily bar", color.gray)
 
-// ───────────────────────────── plots for the Data Window, the Pine Screener and parity checks
-plot(sigmaD * 100.0, "Volatility forecast, % a day", display = display.data_window)
-plot(sigmaAnn, "Volatility forecast, % a year", display = display.data_window)
-plot(atrD, "ATR(14) daily", display = display.data_window)
-plot(stopPx, "Stop price", display = display.data_window)
-plot(shares, "Shares", display = display.data_window)
-plot(100.0 * pStop, "Stop-out odds, %", display = display.data_window)
-plot(lo05, "Range 5%", display = display.data_window)
-plot(hi95, "Range 95%", display = display.data_window)
-plot(sessToE, "Sessions to earnings", display = display.data_window)
-plot(mktUp ? 1 : 0, "Market above 200-day", display = display.data_window)
-plot(barsSinceE, "Bars since earnings", display = display.data_window)
-
-// ───────────────────────────── alerts (one technical alert carries them all)
-bool mktFlip = mktUp != mktUp[1] and not na(mktSma[1])
-if barstate.isconfirmed
-    if mktFlip
-        alert("Market state changed: " + syminfo.ticker(i_mkt) + (mktUp ? " closed above" : " closed below") + " its 200-day average. Suggested exposure " + str.tostring(dial, "#") + "%.", alert.freq_once_per_bar_close)
-    if eInWindow and not eInWindow[1]
-        alert(syminfo.ticker + ": earnings in about " + str.tostring(sessToE, "#") + " sessions, inside a " + str.tostring(i_hold) + "-bar hold. A gap beyond -2 ATR happens about 1 time in 10 on the report.", alert.freq_once_per_bar_close)
-alertcondition(mktFlip, "Market state changed", "Market reference crossed its 200-day average")
-alertcondition(eInWindow and not eInWindow[1], "Earnings inside the holding window", "Earnings are now inside the planned holding period")
+// ─────────────────────────────────────────────────────────────── values for the Data Window, CSV export and the Pine Screener
+plot(atrD,      "Daily ATR14",                  display = display.data_window)
+plot(100.0 * atrD / closeD, "ATR pct of price", display = display.data_window)
+plot(stopPx,    "Stop price",                   display = display.data_window)
+plot(shares,    "Shares",                       display = display.data_window)
+plot(posPct,    "Position pct of equity",       display = display.data_window)
+plot(100.0 * pStop, "Stop odds pct",            display = display.data_window)
+plot(lo05,      "Band 5pct",                    display = display.data_window)
+plot(lo25,      "Band 25pct",                   display = display.data_window)
+plot(hi75,      "Band 75pct",                   display = display.data_window)
+plot(hi95,      "Band 95pct",                   display = display.data_window)
+plot(cov90,     "Record 90 band pct",           display = display.data_window)
+plot(cov50,     "Record 50 band pct",           display = display.data_window)
+plot(covStop,   "Record stop hit pct",          display = display.data_window)
+plot(nAud,      "Record windows",               display = display.data_window)
+plot(dvMed / 1000000.0, "Median dollar volume M", display = display.data_window)
+plot(inUniverse ? 1 : 0, "Inside tested universe", display = display.data_window)
+plot(sessToE,   "Sessions to earnings",         display = display.data_window)
+plot(mktKnown ? (mktUp ? 1 : 0) : na, "Index above 200d", display = display.data_window)
+plot(rNow,      "Position R",                   display = display.data_window)

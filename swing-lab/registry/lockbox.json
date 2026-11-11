@@ -23,6 +23,20 @@
         "S2 R1: ATR forecast against EWMA(20) and Yang-Zhang(20)",
         "S3 R5: exits on random entries (no stop, 2-ATR stop, 3-ATR stop, exit under the 20-day average)"
       ]
+    },
+    {
+      "when_utc": "2026-11-11T23:23:00+00:00",
+      "reason": "post-evaluation recalibration of the displayed earnings odds (descriptive, G60)",
+      "frozen_rules": [
+        "none: descriptive"
+      ]
+    },
+    {
+      "when_utc": "2026-11-11T23:32:34+00:00",
+      "reason": "post-evaluation description of trade outcomes in R units for the playbook (descriptive, G61)",
+      "frozen_rules": [
+        "none: descriptive"
+      ]
     }
   ]
 }

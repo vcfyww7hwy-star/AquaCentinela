@@ -1,0 +1,94 @@
+//@version=6
+// SL Odds Check (swing-lab): a strategy that exists to be audited, not traded.
+//
+// It reproduces, in TradingView's own Strategy Tester and on TradingView's own data, the experiment behind the
+// stop-out odds shown by "SL Risk Desk": buy at the next open, with no signal at all, place a stop k x ATR(14)
+// below the fill, sell at the close of the h-th bar if the stop was not hit, and start again on the next bar.
+// The table compares the share of trades that were stopped on this chart with the published figure. One symbol
+// is a small sample: expect a few points of difference either way; the published figures are averages over
+// about 1,600 stocks a day.
+//
+// Expect the net profit to look like buy-and-hold with gaps. That is the point: random entries earn the stock's
+// own drift, and a stop does not add to it.
+//
+// Use a daily chart. Properties: commission and slippage zero, "Recalculate" options off, bar magnifier off.
+strategy("SL Odds Check", shorttitle = "SL Odds Check", overlay = true, initial_capital = 1000000, default_qty_type = strategy.fixed,
+     default_qty_value = 1, commission_type = strategy.commission.percent, commission_value = 0.0, slippage = 0, pyramiding = 0,
+     calc_on_every_tick = false, calc_on_order_fills = false, process_orders_on_close = false, use_bar_magnifier = false)
+
+float i_stopK = input.float(2.0, "Stop distance, in ATR(14)", options = [1.0, 1.5, 2.0, 2.5, 3.0, 4.0])
+int   i_hold  = input.int(10, "Holding period, bars", options = [5, 10, 20])
+
+if not (timeframe.isdaily and timeframe.multiplier == 1)
+    runtime.error("SL Odds Check: use a daily chart.")
+
+// published figures: share of entries stopped within h bars (see SL Risk Desk)
+f_published(float k, int h) =>
+    int i = k == 1.0 ? 0 : k == 1.5 ? 1 : k == 2.0 ? 2 : k == 2.5 ? 3 : k == 3.0 ? 4 : 5
+    array<float> p5  = array.from(0.458, 0.288, 0.176, 0.107, 0.066, 0.028)
+    array<float> p10 = array.from(0.599, 0.445, 0.324, 0.233, 0.165, 0.083)
+    array<float> p20 = array.from(0.710, 0.584, 0.475, 0.381, 0.303, 0.188)
+    h == 5 ? p5.get(i) : h == 10 ? p10.get(i) : p20.get(i)
+
+float atr = ta.atr(14)
+
+// ───────────── bookkeeping of trades closed since the last bar (before a new entry overwrites the risk)
+var float riskPS    = na      // k x ATR of the open (or last) trade, per share
+var int   seen      = 0
+var int   nTrades   = 0
+var int   nStopped  = 0
+var int   nGapped   = 0
+var int   nWorse    = 0
+var float worstR    = 0.0
+if strategy.closedtrades > seen
+    for i = seen to strategy.closedtrades - 1
+        float entryPx = strategy.closedtrades.entry_price(i)
+        float exitPx  = strategy.closedtrades.exit_price(i)
+        bool  stopped = strategy.closedtrades.exit_id(i) == "Stop"
+        float r       = (exitPx - entryPx) / riskPS
+        nTrades += 1
+        if stopped
+            nStopped += 1
+            if exitPx < entryPx - riskPS - syminfo.mintick      // filled below the stop: the bar opened through it
+                nGapped += 1
+        if r < -1.5
+            nWorse += 1
+        worstR := math.min(worstR, r)
+    seen := strategy.closedtrades
+
+// ───────────── time exit: at the close of the h-th bar of the trade
+if strategy.position_size > 0
+    int heldBars = bar_index - strategy.opentrades.entry_bar_index(0) + 1
+    if heldBars >= i_hold
+        strategy.close("L", comment = "Time", immediately = true)
+
+// ───────────── entry: on the bar after the previous trade ended, filled at the next open
+int  lastExit = strategy.closedtrades > 0 ? strategy.closedtrades.exit_bar_index(strategy.closedtrades - 1) : -1
+bool canEnter = strategy.position_size == 0 and lastExit < bar_index and not na(atr) and atr > 0
+if canEnter
+    riskPS := i_stopK * atr
+    strategy.entry("L", strategy.long)
+    strategy.exit("Stop", from_entry = "L", loss = riskPS / syminfo.mintick, comment = "Stop")
+
+// ───────────── table
+var table tb = table.new(position.top_right, 2, 6, border_width = 1, border_color = color.new(color.gray, 75))
+f_row(int r, string k, string v) =>
+    table.cell(tb, 0, r, k, text_halign = text.align_left, text_size = size.small, text_color = color.gray)
+    table.cell(tb, 1, r, v, text_halign = text.align_left, text_size = size.small, text_color = chart.fg_color)
+
+if barstate.islast
+    float pub = f_published(i_stopK, i_hold)
+    float obs = nTrades > 0 ? nStopped / nTrades : na
+    float se  = nTrades > 0 ? math.sqrt(pub * (1.0 - pub) / nTrades) : na
+    f_row(0, "Rule", "stop " + str.tostring(i_stopK, "#.#") + " ATR, " + str.tostring(i_hold) + " bars, entry at the next open")
+    f_row(1, "Trades", str.tostring(nTrades))
+    f_row(2, "Stopped on this chart", str.tostring(100.0 * obs, "#.#") + "%")
+    f_row(3, "Published", str.tostring(100.0 * pub, "#.#") + "%   (sampling error here: +/- " + str.tostring(200.0 * se, "#.#") + " points)")
+    f_row(4, "Stops filled below their price", nStopped > 0 ? str.tostring(100.0 * nGapped / nStopped, "#.#") + "% of stops   (published: about 15%)" : "-")
+    f_row(5, "Trades worse than -1.5 R", nTrades > 0 ? str.tostring(100.0 * nWorse / nTrades, "#.##") + "%   worst " + str.tostring(worstR, "#.#") + " R   (published: about 1%)" : "-")
+
+plot(nTrades,  "Trades",        display = display.data_window)
+plot(nStopped, "Stopped",       display = display.data_window)
+plot(nGapped,  "Gapped stops",  display = display.data_window)
+plot(nWorse,   "Worse than -1.5R", display = display.data_window)
+plot(strategy.position_size > 0 ? strategy.position_avg_price - riskPS : na, "Stop of the open trade", color = color.new(color.red, 20), style = plot.style_linebr)
