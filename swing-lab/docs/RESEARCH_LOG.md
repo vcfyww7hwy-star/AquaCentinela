@@ -442,3 +442,71 @@ support. Neither earnings hypothesis joins the lockbox list. The product may des
 drift as suggestive at most, and only if the lockbox agrees in sign.
 
 **Trials:** see `registry/`; validation looks: two runs (20 + 10 logged outcomes). Lockbox: sealed.
+
+---
+
+## 2026-11-11 (UTC) - Session 2, entry 7: the lockbox, opened once
+
+Pre-registration `docs/05_preregistration_lockbox.md` at commit `2e64873`, pushed before the run.
+Opening recorded in `registry/lockbox.json` (2026-11-11T23:17Z). Result file
+`research/results/lockbox.json`; the runner now refuses to run again.
+Sample: 3 Jan 2023 - 9 Nov 2026, 967 trading days, 1,650 names a day, survivorship-free.
+
+### Primary claims
+
+| ID | Claim | Lockbox result | Criterion | Verdict |
+|---|---|---|---|---|
+| L1a | 10-bar return from the next open in units of 0.757 x ATR/close x sqrt(10) (R2 unchanged) | 5% / 95% quantiles -1.54 / +1.53; coverage of the development band 89.6% pooled; 88.2%, 89.4%, 91.3% by volatility tercile; 89.7%, 88.9%, 89.8%, 90.0% by year | as in validation | **pass** |
+| L1b | Displayed bands, close to close, h = 5 / 10 / 20 | 90% band holds 89.9% / 89.7% / 89.6%; 50% band holds 50.0% / 49.5% / 48.8%; every yearly block between 88.9% and 90.3% | 87-93% and 46-54% at each horizon | **pass** |
+| L2a | Stop-out table against development (R3 unchanged) | largest difference 1.5 points over 18 cells; 2 ATR, 10 bars: 31.6% (development 31.5%); 15.1% of stop exits gapped through; 1.02% of trades worse than -1.5R | <= 4 points; 8-20%; <= 1.92% | **pass** |
+| L2b | Displayed stop-out table | largest difference 1.7 points | <= 4 points | **pass** |
+| L3a | Earnings nights (R4 unchanged) | gap worse than -2 ATR: 12.3% on 25,185 reaction bars against 0.118% on ordinary nights, a ratio of 104 | ratio >= 20 | **pass** |
+| L3b | Displayed earnings odds (17% / 7.5% / 3.5% for gaps worse than -1 / -2 / -3 ATR) | 24.3% / 12.3% / 6.3% | 13-21% and 5-10.5% | **fail**: the nights were more dangerous than displayed |
+| L4 | SPY below its 200-day average is a risk state (R6 unchanged) | SPY volatility 12.7% a year above, 30.4% below: ratio 2.4 (82 days below). Stocks losing 10% in 20 bars: 13.3% above, **9.8% below**. SPY mean daily return +5 bp above, +24 bp below | ratio >= 1.5 AND stock tail higher below | **fail** on the second part |
+| L5 | E1: gap up >= 3 sigma on volume >= 3x, strong close; 10 bars | day-weighted **-7 bp** (t -0.19, p 0.57); event-weighted +12 bp (t 0.45, p 0.33); 1,162 events; net of protocol costs -2 bp | p <= 0.05 and p <= 0.10 | **fail**, wrong sign in one weighting |
+
+### Secondary claims (could earn "suggestive" at most)
+
+| ID | Lockbox result | Agrees in sign? |
+|---|---|---|
+| S1 PE1: earnings reaction >= +3 sigma, 20 bars | +7 bp (t 0.21); event-weighted +17 bp (t 0.88); 4,246 events | yes, at a tenth of the validation size: nothing a trader could use |
+| S2 R1: ATR against EWMA(20) and Yang-Zhang(20), QLIKE at 10 bars | 0.622 against 0.730 (t 4.4, better in 4 of 4 years) and 0.617 (t -0.1) | against EWMA yes; against Yang-Zhang no: a tie |
+| S3 R5: net bp per bar held, random entries | no stop 5.71; 3-ATR stop 5.10; 2-ATR stop 4.67; exit under the 20-day average 3.73 (differences p 0.054 and 0.14) | yes |
+
+### Declared diagnostics
+
+- E1 by cross-section half: +66 bp (A) and -65 bp (B). On validation data it was +102 and -21. The
+  "effect" was a property of which names fell in which half: noise.
+- E1 on earnings reaction bars +4 bp (779 events), on other bars -25 bp (383 events).
+- After 1 July 2026 (the only window that is clean of the researcher's prior knowledge too): E1's
+  mean daily spread -104 bp over 71 events; displayed bands held 91.3% / 91.0% / 91.0% (90% band)
+  and 52.1% / 50.7% / 48.7% (50% band).
+- ATR constant refitted on the lockbox: 0.85 (development 0.757, validation 0.879): not a constant.
+- Worst single trade in the 2-ATR, 10-bar stop simulation: -132R. A stop does not bound a loss
+  when the price gaps through it; 1% of trades ended worse than -1.5R.
+
+### Final status of every claim
+
+| Claim | Label |
+|---|---|
+| Over the next 5, 10 or 20 bars a liquid US stock's close lands inside the displayed ATR bands with the stated frequency (90% and 50%) | **Demonstrated out of sample** |
+| A stop k ATR below the next open is hit within h bars with the displayed frequency (18 cells, within 1.7 points) | **Demonstrated out of sample** |
+| An earnings night is at least 20 times more likely than an ordinary night to gap more than 2 ATR against the holder (observed: 48 times in 2018-22, 104 times in 2023-26) | **Demonstrated out of sample** |
+| The exact odds of an adverse earnings gap | Recalibrated after the lockbox to the pooled 2017-2026 figures (20% / 10% / 5% for -1 / -2 / -3 ATR; range across samples 17-24%, 7.5-12%, 3.5-6%): **untested** |
+| The index is about twice as volatile when SPY is below its 200-day average (ratios 1.9, 1.9, 2.2, 2.4 in four samples) | **Suggestive** (passed validation; the lockbox claim failed on its other part) |
+| A stock is more likely to lose 10% in 20 bars when SPY is below its 200-day average | **Failed on the lockbox** (true in three earlier samples, reversed in 2023-26) |
+| Tight stops and moving-average exits earn less per bar held than a wide stop or none | **Suggestive** (same order in four samples, never significant) |
+| ATR(14) forecasts volatility better than an EWMA of squared returns | **Suggestive**; "better than every range estimator" is unsupported |
+| Strong positive earnings reactions drift up for 2-4 weeks | Suggestive by the letter of the protocol; +7 to +17 bp on the lockbox: of no practical use |
+| E1 (gap up on volume, strong close) | **Dead** |
+| Six "avoid" states, bad earnings reactions keep falling, dip buying, breakouts, volume signals, momentum and 52-week-high selection, squeeze, short-sale volume, calendar | **Dead** (validation or development; entries 4-6) |
+
+### Reading
+
+Across about 64,000 evaluated cells, two looks at validation data and one at the lockbox, no rule
+that says which stock to buy or when survived. The one that came closest (same sign and size in
+three samples, t-statistics between 1.7 and 2.9) was zero on the fourth. What is real is the
+arithmetic of risk: how far a stock moves, how often a stop is hit by noise, how dangerous an
+earnings night is. That is the product.
+
+**Trials:** see `registry/`. Validation looks: two runs. Lockbox: opened once, closed.

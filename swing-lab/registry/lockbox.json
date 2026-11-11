@@ -1,7 +1,28 @@
 {
-  "status": "SEALED",
+  "status": "OPENED",
   "sealed_on": "2026-11-10",
-  "daily_lockbox": {"start": "2023-01-03", "end": "2026-11-09"},
-  "intraday_lockbox": {"start": "2025-01-02", "end": "2026-11-09"},
-  "openings": []
+  "daily_lockbox": {
+    "start": "2023-01-03",
+    "end": "2026-11-09"
+  },
+  "intraday_lockbox": {
+    "start": "2025-01-02",
+    "end": "2026-11-09"
+  },
+  "openings": [
+    {
+      "when_utc": "2026-11-11T23:17:15+00:00",
+      "reason": "single frozen evaluation, docs/05_preregistration_lockbox.md",
+      "frozen_rules": [
+        "L1 range calibration (R2 unchanged, and the displayed bands)",
+        "L2 stop-out odds (R3 unchanged, and the displayed table)",
+        "L3 earnings gap risk (R4 unchanged, and the displayed odds)",
+        "L4 market state as a risk state (R6 unchanged)",
+        "L5 E1: gap up >= 3 sigma on volume >= 3x, close in the top third; 10 bars; +",
+        "S1 PE1: earnings reaction >= +3 sigma; 20 bars; +",
+        "S2 R1: ATR forecast against EWMA(20) and Yang-Zhang(20)",
+        "S3 R5: exits on random entries (no stop, 2-ATR stop, 3-ATR stop, exit under the 20-day average)"
+      ]
+    }
+  ]
 }
