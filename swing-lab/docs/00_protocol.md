@@ -180,4 +180,26 @@ is a computed event, not a feeling.
 
 ## Amendments
 
-*(none yet)*
+
+### Amendment 1 - 11 Nov 2026 (before any validation outcome was computed)
+
+Reason: three data sets turned out to begin or end at awkward places. Nothing above changes.
+
+1. **Context sample CTX.** Yahoo daily history of today's survivors, 1998-2010, was added as a
+   second development sample because DEV (2011-2018) holds no bear market. It is strongly
+   survivor-biased and is never evidence; it shows whether an effect behaves the same in 2000-02
+   and 2008 before a validation look is spent.
+2. **Earnings.** Announcement dates begin in January 2017. The earnings family therefore develops
+   on DEV restricted to 2017-01..2018-06 and has no CTX. Its hypotheses are taken from the
+   published literature, so that the short development window is a sanity check, not a search.
+3. **Short-sale volume.** FINRA's consolidated daily file, the series TradingView exposes, begins
+   on 2018-08-01, inside the validation window. That family alone uses its own split:
+   exploration `DEV_S` 2018-08-01..2020-06-30, confirmation `VAL_S` 2020-07-01..2022-12-30.
+   Consequence, stated plainly: for that family the researcher sees returns from the first third
+   of the validation window, conditioned on short-volume features. No other family may be
+   explored there.
+4. **Intraday.** E03 used 1-hour bars from 2023-12-14 to 2024-12-31 for four non-P&L questions
+   (volume profile, agreement of a 15:30 decision with the close, realised-variance forecasting,
+   timing of the day's extremes), as section 2.3 allows. Those dates lie inside the daily lockbox;
+   no return of any trading rule was computed on them. Later 1-hour bars stay unread.
+5. **Kenneth French library** data are cut at 2022-12-30 (E02).

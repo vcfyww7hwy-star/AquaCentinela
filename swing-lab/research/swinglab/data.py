@@ -27,6 +27,9 @@ PARTITIONS = {
     "LOCKBOX": ("2023-01-03", "2026-11-09"),    # sealed
     "POSTCUTOFF": ("2026-07-01", "2026-11-09"),  # inside the lockbox; after the model's knowledge ends
     "CTX": ("1998-01-02", "2010-12-31"),        # context panel only: Yahoo survivors, strongly biased
+    # protocol amendment 1: families whose data begins inside the validation window
+    "DEV_S": ("2018-08-01", "2020-06-30"),      # short-volume family: exploration
+    "VAL_S": ("2020-07-01", "2022-12-30"),      # short-volume family: confirmation
 }
 FIELDS = ("o", "h", "l", "c", "v", "c_raw", "div", "adv60", "bad")
 STOCK_TYPES = ("common", "adr", "prior_use", "unknown")

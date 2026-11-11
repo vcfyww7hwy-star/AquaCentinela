@@ -42,17 +42,17 @@ class Study:
     def __init__(self, sample: str = "DEV", adv_min: float | None = None, px_min: float = 5.0,
                  types=STOCK_TYPES, hs=HS):
         sample = sample.upper()
-        if sample == "VAL":
+        if sample in ("VAL", "VAL_S"):
             if os.environ.get("SWINGLAB_VAL_TOKEN") != "PRE-REGISTERED":
                 raise PermissionError("VAL is for pre-registered confirmations only (protocol section 3). "
                                       "Register the hypothesis in docs/RESEARCH_LOG.md first.")
             p = load_panel()
-        elif sample == "DEV":
+        elif sample in ("DEV", "DEV_S"):
             p = load_panel()
         elif sample == "CTX":
             p = load_ctx()
         else:
-            raise ValueError("sample must be DEV, CTX or VAL")
+            raise ValueError("sample must be DEV, CTX, DEV_S, VAL or VAL_S")
         self.sample, self.p, self.hs = sample, p, tuple(hs)
         self.adv_min = adv_min if adv_min is not None else (5e6 if sample == "CTX" else 20e6)
         self.rows = p.rows(sample)
