@@ -45,10 +45,14 @@ def _sim(o, h, l, c, div, atr, sig, exit_sig, last, cause, stop_k, trail_k, targ
             e = t + 1
             entry = o[e, n]
             risk = stop_k * atr[t, n]
-            if risk <= 0 or risk >= entry:
+            if risk <= 0:
                 t += 1
                 continue
-            stop = entry - risk
+            if risk >= entry:          # a stop at or below zero means "no stop": R is then the plain return
+                risk = entry
+                stop = -1.0
+            else:
+                stop = entry - risk
             target = entry + target_r * risk if target_r > 0 else np.inf
             hi_close = entry
             mae, mfe = 0.0, 0.0

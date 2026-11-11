@@ -81,6 +81,22 @@ class Study:
         self._last_row = int(r_idx[-1])
         self.half_a = np.array([_md5_even(s) for s in self.ents["symbol"]])
 
+    def truncated(self, t_cut: int) -> "Study":
+        """A copy of this Study that has never seen rows >= t_cut. Used to prove that a signal
+        does not depend on the future: build it on the copy and compare with the full one."""
+        import copy
+        T = copy.copy(self)
+        P = copy.copy(self.P)
+        for k in ("o", "h", "l", "c", "cf", "v", "ret", "tri"):
+            setattr(P, k, getattr(self.P, k)[:t_cut].copy())
+        T.P = P
+        T.uni = self.uni[:t_cut].copy()
+        T.adv60, T.c_raw = self.adv60[:t_cut], self.c_raw[:t_cut]
+        T.dates, T.rows = self.dates[:t_cut], self.rows[:t_cut]
+        T.vol = E.vol_ewma(P, 20)
+        T._fwd, T._z = {}, {}
+        return T
+
     # ------------------------------------------------------------------ building blocks
     def z(self, k: int) -> np.ndarray:
         """k-day log return in units of the volatility known before the move started."""

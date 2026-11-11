@@ -1,0 +1,1083 @@
+{
+"DEV|RANDOM|time 10, no stop": {
+"trades": 29091,
+"ret_bp": 36.5,
+"ret_t": 2.07,
+"R": 0.004,
+"R_t": 2.07,
+"win": 0.543,
+"bars": 10.0,
+"worst_R": -0.7,
+"share_below_-1.5R": 0.0,
+"exit_mix": {
+"time": 1.0
+},
+"sd_pct": 6.19,
+"bear_years_bp": -31.9
+},
+"DEV|RANDOM|time 20, no stop": {
+"trades": 24885,
+"ret_bp": 85.5,
+"ret_t": 2.55,
+"R": 0.009,
+"R_t": 2.55,
+"win": 0.556,
+"bars": 20.0,
+"worst_R": -0.8,
+"share_below_-1.5R": 0.0,
+"exit_mix": {
+"time": 1.0,
+"delist": 0.0
+},
+"sd_pct": 8.8,
+"bear_years_bp": -64.8
+},
+"DEV|RANDOM|time 40, no stop": {
+"trades": 19325,
+"ret_bp": 174.6,
+"ret_t": 2.91,
+"R": 0.017,
+"R_t": 2.91,
+"win": 0.575,
+"bars": 40.0,
+"worst_R": -0.8,
+"share_below_-1.5R": 0.0,
+"exit_mix": {
+"time": 1.0,
+"delist": 0.0
+},
+"sd_pct": 12.32,
+"bear_years_bp": -113.5
+},
+"DEV|RANDOM|stop 1.5 ATR, time 20": {
+"trades": 28021,
+"ret_bp": 26.3,
+"ret_t": 1.23,
+"R": 0.072,
+"R_t": 1.36,
+"win": 0.378,
+"bars": 12.6,
+"worst_R": -12.5,
+"share_below_-1.5R": 0.0211,
+"exit_mix": {
+"stop": 0.497,
+"time": 0.42,
+"gap_stop": 0.083,
+"delist": 0.0
+},
+"sd_pct": 7.16,
+"bear_years_bp": -63.3
+},
+"DEV|RANDOM|stop 2 ATR, time 20": {
+"trades": 27121,
+"ret_bp": 38.9,
+"ret_t": 1.57,
+"R": 0.078,
+"R_t": 1.69,
+"win": 0.447,
+"bars": 14.6,
+"worst_R": -9.4,
+"share_below_-1.5R": 0.0158,
+"exit_mix": {
+"time": 0.531,
+"stop": 0.396,
+"gap_stop": 0.073,
+"delist": 0.0
+},
+"sd_pct": 7.74,
+"bear_years_bp": -65.3
+},
+"DEV|RANDOM|stop 3 ATR, time 20": {
+"trades": 26004,
+"ret_bp": 57.6,
+"ret_t": 1.96,
+"R": 0.076,
+"R_t": 2.04,
+"win": 0.519,
+"bars": 17.1,
+"worst_R": -6.3,
+"share_below_-1.5R": 0.0097,
+"exit_mix": {
+"time": 0.703,
+"stop": 0.249,
+"gap_stop": 0.048,
+"delist": 0.0
+},
+"sd_pct": 8.37,
+"bear_years_bp": -66.9
+},
+"DEV|RANDOM|stop 3 ATR, time 40": {
+"trades": 21980,
+"ret_bp": 92.7,
+"ret_t": 1.97,
+"R": 0.125,
+"R_t": 2.01,
+"win": 0.468,
+"bars": 29.5,
+"worst_R": -6.3,
+"share_below_-1.5R": 0.0146,
+"exit_mix": {
+"time": 0.551,
+"stop": 0.376,
+"gap_stop": 0.073,
+"delist": 0.0
+},
+"sd_pct": 11.23,
+"bear_years_bp": -121.0
+},
+"DEV|RANDOM|stop 2 ATR, trail 3 ATR, no time limit": {
+"trades": 24220,
+"ret_bp": 42.5,
+"ret_t": 1.38,
+"R": 0.095,
+"R_t": 1.67,
+"win": 0.368,
+"bars": 22.5,
+"worst_R": -9.4,
+"share_below_-1.5R": 0.0164,
+"exit_mix": {
+"stop": 0.849,
+"gap_stop": 0.151,
+"delist": 0.0
+},
+"sd_pct": 9.4,
+"bear_years_bp": -96.6
+},
+"DEV|RANDOM|stop 3 ATR, trail 4 ATR, no time limit": {
+"trades": 19973,
+"ret_bp": 91.6,
+"ret_t": 1.75,
+"R": 0.136,
+"R_t": 2.03,
+"win": 0.399,
+"bars": 37.4,
+"worst_R": -6.3,
+"share_below_-1.5R": 0.0111,
+"exit_mix": {
+"stop": 0.837,
+"gap_stop": 0.162,
+"time": 0.0,
+"delist": 0.0
+},
+"sd_pct": 12.5,
+"bear_years_bp": -131.9
+},
+"DEV|RANDOM|stop 2 ATR, target 2R, time 20": {
+"trades": 27731,
+"ret_bp": 37.4,
+"ret_t": 1.64,
+"R": 0.073,
+"R_t": 1.74,
+"win": 0.457,
+"bars": 13.2,
+"worst_R": -9.4,
+"share_below_-1.5R": 0.0154,
+"exit_mix": {
+"stop": 0.39,
+"time": 0.351,
+"target": 0.187,
+"gap_stop": 0.072,
+"delist": 0.0
+},
+"sd_pct": 7.18,
+"bear_years_bp": -55.9
+},
+"DEV|RANDOM|stop 2 ATR, target 3R, time 40": {
+"trades": 24677,
+"ret_bp": 60.7,
+"ret_t": 1.82,
+"R": 0.126,
+"R_t": 2.07,
+"win": 0.379,
+"bars": 21.3,
+"worst_R": -9.4,
+"share_below_-1.5R": 0.0211,
+"exit_mix": {
+"stop": 0.498,
+"time": 0.249,
+"target": 0.158,
+"gap_stop": 0.094,
+"delist": 0.0
+},
+"sd_pct": 9.32,
+"bear_years_bp": -91.0
+},
+"DEV|RANDOM|time 40, exit after a -3 sigma day": {
+"trades": 20975,
+"ret_bp": 134.9,
+"ret_t": 2.73,
+"R": 0.013,
+"R_t": 2.73,
+"win": 0.52,
+"bars": 33.0,
+"worst_R": -0.8,
+"share_below_-1.5R": 0.0,
+"exit_mix": {
+"time": 0.646,
+"signal": 0.353,
+"delist": 0.0
+},
+"sd_pct": 11.41,
+"bear_years_bp": -81.9
+},
+"DEV|RANDOM|time 40, exit on close under 20-day average": {
+"trades": 30222,
+"ret_bp": 3.9,
+"ret_t": 0.53,
+"R": 0.0,
+"R_t": 0.53,
+"win": 0.4,
+"bars": 8.0,
+"worst_R": -0.8,
+"share_below_-1.5R": 0.0,
+"exit_mix": {
+"signal": 0.983,
+"time": 0.017,
+"delist": 0.0
+},
+"sd_pct": 4.93,
+"bear_years_bp": -52.8
+},
+"DEV|RANDOM|time 40, exit on close under prior 10-day low": {
+"trades": 25810,
+"ret_bp": 41.3,
+"ret_t": 1.53,
+"R": 0.004,
+"R_t": 1.53,
+"win": 0.358,
+"bars": 18.2,
+"worst_R": -0.8,
+"share_below_-1.5R": 0.0,
+"exit_mix": {
+"signal": 0.856,
+"time": 0.144,
+"delist": 0.0
+},
+"sd_pct": 8.47,
+"bear_years_bp": -99.3
+},
+"DEV|RANDOM|stop 3 ATR, time 40, exit after a -3 sigma day": {
+"trades": 22573,
+"ret_bp": 90.3,
+"ret_t": 2.09,
+"R": 0.121,
+"R_t": 2.16,
+"win": 0.457,
+"bars": 27.4,
+"worst_R": -6.3,
+"share_below_-1.5R": 0.0129,
+"exit_mix": {
+"time": 0.442,
+"stop": 0.293,
+"signal": 0.207,
+"gap_stop": 0.058,
+"delist": 0.0
+},
+"sd_pct": 10.79,
+"bear_years_bp": -96.5
+},
+"DEV|TREND|time 10, no stop": {
+"trades": 48763,
+"ret_bp": 25.2,
+"ret_t": 1.68,
+"R": 0.003,
+"R_t": 1.68,
+"win": 0.542,
+"bars": 10.0,
+"worst_R": -0.9,
+"share_below_-1.5R": 0.0,
+"exit_mix": {
+"time": 1.0,
+"delist": 0.0
+},
+"sd_pct": 5.26,
+"bear_years_bp": -65.6
+},
+"DEV|TREND|time 20, no stop": {
+"trades": 34804,
+"ret_bp": 69.5,
+"ret_t": 2.62,
+"R": 0.007,
+"R_t": 2.62,
+"win": 0.559,
+"bars": 20.0,
+"worst_R": -0.9,
+"share_below_-1.5R": 0.0,
+"exit_mix": {
+"time": 1.0,
+"delist": 0.0
+},
+"sd_pct": 7.6,
+"bear_years_bp": -80.7
+},
+"DEV|TREND|time 40, no stop": {
+"trades": 22798,
+"ret_bp": 175.0,
+"ret_t": 3.73,
+"R": 0.018,
+"R_t": 3.73,
+"win": 0.591,
+"bars": 40.0,
+"worst_R": -0.9,
+"share_below_-1.5R": 0.0,
+"exit_mix": {
+"time": 1.0,
+"delist": 0.0
+},
+"sd_pct": 10.72,
+"bear_years_bp": -107.0
+},
+"DEV|TREND|stop 1.5 ATR, time 20": {
+"trades": 40781,
+"ret_bp": 18.0,
+"ret_t": 1.02,
+"R": 0.065,
+"R_t": 1.18,
+"win": 0.379,
+"bars": 12.6,
+"worst_R": -12.8,
+"share_below_-1.5R": 0.0224,
+"exit_mix": {
+"stop": 0.503,
+"time": 0.419,
+"gap_stop": 0.078,
+"delist": 0.0
+},
+"sd_pct": 6.03,
+"bear_years_bp": -87.5
+},
+"DEV|TREND|stop 2 ATR, time 20": {
+"trades": 37996,
+"ret_bp": 28.2,
+"ret_t": 1.39,
+"R": 0.073,
+"R_t": 1.55,
+"win": 0.447,
+"bars": 14.6,
+"worst_R": -9.6,
+"share_below_-1.5R": 0.0161,
+"exit_mix": {
+"time": 0.529,
+"stop": 0.405,
+"gap_stop": 0.067,
+"delist": 0.0
+},
+"sd_pct": 6.56,
+"bear_years_bp": -90.6
+},
+"DEV|TREND|stop 3 ATR, time 20": {
+"trades": 35804,
+"ret_bp": 44.6,
+"ret_t": 1.86,
+"R": 0.075,
+"R_t": 2.01,
+"win": 0.521,
+"bars": 17.1,
+"worst_R": -6.4,
+"share_below_-1.5R": 0.0097,
+"exit_mix": {
+"time": 0.701,
+"stop": 0.253,
+"gap_stop": 0.047,
+"delist": 0.0
+},
+"sd_pct": 7.13,
+"bear_years_bp": -98.2
+},
+"DEV|TREND|stop 3 ATR, time 40": {
+"trades": 25468,
+"ret_bp": 94.3,
+"ret_t": 2.48,
+"R": 0.16,
+"R_t": 2.57,
+"win": 0.481,
+"bars": 29.8,
+"worst_R": -6.4,
+"share_below_-1.5R": 0.0125,
+"exit_mix": {
+"time": 0.562,
+"stop": 0.371,
+"gap_stop": 0.067,
+"delist": 0.0
+},
+"sd_pct": 9.66,
+"bear_years_bp": -118.1
+},
+"DEV|TREND|stop 2 ATR, trail 3 ATR, no time limit": {
+"trades": 27474,
+"ret_bp": 44.4,
+"ret_t": 1.68,
+"R": 0.12,
+"R_t": 1.95,
+"win": 0.37,
+"bars": 23.1,
+"worst_R": -9.6,
+"share_below_-1.5R": 0.0151,
+"exit_mix": {
+"stop": 0.862,
+"gap_stop": 0.138,
+"delist": 0.0
+},
+"sd_pct": 8.41,
+"bear_years_bp": -109.2
+},
+"DEV|TREND|stop 3 ATR, trail 4 ATR, no time limit": {
+"trades": 20033,
+"ret_bp": 104.4,
+"ret_t": 2.26,
+"R": 0.174,
+"R_t": 2.47,
+"win": 0.4,
+"bars": 38.7,
+"worst_R": -6.4,
+"share_below_-1.5R": 0.0094,
+"exit_mix": {
+"stop": 0.847,
+"gap_stop": 0.152,
+"time": 0.0,
+"delist": 0.0
+},
+"sd_pct": 11.7,
+"bear_years_bp": -136.5
+},
+"DEV|TREND|stop 2 ATR, target 2R, time 20": {
+"trades": 40170,
+"ret_bp": 26.7,
+"ret_t": 1.45,
+"R": 0.068,
+"R_t": 1.62,
+"win": 0.458,
+"bars": 13.2,
+"worst_R": -9.6,
+"share_below_-1.5R": 0.0156,
+"exit_mix": {
+"stop": 0.398,
+"time": 0.353,
+"target": 0.184,
+"gap_stop": 0.066,
+"delist": 0.0
+},
+"sd_pct": 5.98,
+"bear_years_bp": -79.6
+},
+"DEV|TREND|stop 2 ATR, target 3R, time 40": {
+"trades": 30746,
+"ret_bp": 55.4,
+"ret_t": 2.02,
+"R": 0.142,
+"R_t": 2.22,
+"win": 0.383,
+"bars": 21.3,
+"worst_R": -9.6,
+"share_below_-1.5R": 0.0201,
+"exit_mix": {
+"stop": 0.507,
+"time": 0.245,
+"target": 0.164,
+"gap_stop": 0.084,
+"delist": 0.0
+},
+"sd_pct": 7.94,
+"bear_years_bp": -103.1
+},
+"DEV|TREND|time 40, exit after a -3 sigma day": {
+"trades": 24578,
+"ret_bp": 130.9,
+"ret_t": 3.27,
+"R": 0.013,
+"R_t": 3.27,
+"win": 0.529,
+"bars": 33.1,
+"worst_R": -0.8,
+"share_below_-1.5R": 0.0,
+"exit_mix": {
+"time": 0.645,
+"signal": 0.355,
+"delist": 0.0
+},
+"sd_pct": 9.92,
+"bear_years_bp": -100.5
+},
+"DEV|TREND|time 40, exit on close under 20-day average": {
+"trades": 35779,
+"ret_bp": 34.6,
+"ret_t": 1.77,
+"R": 0.003,
+"R_t": 1.77,
+"win": 0.386,
+"bars": 15.5,
+"worst_R": -0.8,
+"share_below_-1.5R": 0.0,
+"exit_mix": {
+"signal": 0.956,
+"time": 0.044,
+"delist": 0.0
+},
+"sd_pct": 6.68,
+"bear_years_bp": -83.5
+},
+"DEV|TREND|time 40, exit on close under prior 10-day low": {
+"trades": 29134,
+"ret_bp": 60.7,
+"ret_t": 2.07,
+"R": 0.006,
+"R_t": 2.07,
+"win": 0.423,
+"bars": 22.7,
+"worst_R": -0.9,
+"share_below_-1.5R": 0.0,
+"exit_mix": {
+"signal": 0.808,
+"time": 0.192,
+"delist": 0.0
+},
+"sd_pct": 8.28,
+"bear_years_bp": -118.6
+},
+"DEV|TREND|stop 3 ATR, time 40, exit after a -3 sigma day": {
+"trades": 26369,
+"ret_bp": 87.7,
+"ret_t": 2.49,
+"R": 0.147,
+"R_t": 2.56,
+"win": 0.465,
+"bars": 27.7,
+"worst_R": -6.4,
+"share_below_-1.5R": 0.0109,
+"exit_mix": {
+"time": 0.448,
+"stop": 0.291,
+"signal": 0.208,
+"gap_stop": 0.053,
+"delist": 0.0
+},
+"sd_pct": 9.25,
+"bear_years_bp": -112.6
+},
+"CTX|RANDOM|time 10, no stop": {
+"trades": 36754,
+"ret_bp": 34.0,
+"ret_t": 1.45,
+"R": 0.003,
+"R_t": 1.45,
+"win": 0.529,
+"bars": 10.0,
+"worst_R": -0.7,
+"share_below_-1.5R": 0.0,
+"exit_mix": {
+"time": 1.0
+},
+"sd_pct": 8.47,
+"bear_years_bp": -76.1
+},
+"CTX|RANDOM|time 20, no stop": {
+"trades": 31448,
+"ret_bp": 79.4,
+"ret_t": 1.65,
+"R": 0.008,
+"R_t": 1.65,
+"win": 0.544,
+"bars": 20.0,
+"worst_R": -0.9,
+"share_below_-1.5R": 0.0,
+"exit_mix": {
+"time": 1.0
+},
+"sd_pct": 11.93,
+"bear_years_bp": -165.1
+},
+"CTX|RANDOM|time 40, no stop": {
+"trades": 24446,
+"ret_bp": 168.6,
+"ret_t": 1.73,
+"R": 0.017,
+"R_t": 1.73,
+"win": 0.555,
+"bars": 40.0,
+"worst_R": -0.8,
+"share_below_-1.5R": 0.0,
+"exit_mix": {
+"time": 1.0
+},
+"sd_pct": 16.99,
+"bear_years_bp": -352.4
+},
+"CTX|RANDOM|stop 1.5 ATR, time 20": {
+"trades": 35184,
+"ret_bp": 24.4,
+"ret_t": 0.81,
+"R": 0.077,
+"R_t": 1.55,
+"win": 0.38,
+"bars": 12.6,
+"worst_R": -5.9,
+"share_below_-1.5R": 0.0142,
+"exit_mix": {
+"stop": 0.511,
+"time": 0.425,
+"gap_stop": 0.064
+},
+"sd_pct": 9.73,
+"bear_years_bp": -133.4
+},
+"CTX|RANDOM|stop 2 ATR, time 20": {
+"trades": 34015,
+"ret_bp": 37.8,
+"ret_t": 1.03,
+"R": 0.078,
+"R_t": 1.71,
+"win": 0.447,
+"bars": 14.7,
+"worst_R": -6.9,
+"share_below_-1.5R": 0.0096,
+"exit_mix": {
+"time": 0.538,
+"stop": 0.407,
+"gap_stop": 0.055
+},
+"sd_pct": 10.52,
+"bear_years_bp": -140.8
+},
+"CTX|RANDOM|stop 3 ATR, time 20": {
+"trades": 32751,
+"ret_bp": 50.3,
+"ret_t": 1.16,
+"R": 0.067,
+"R_t": 1.82,
+"win": 0.513,
+"bars": 17.2,
+"worst_R": -7.4,
+"share_below_-1.5R": 0.0053,
+"exit_mix": {
+"time": 0.709,
+"stop": 0.255,
+"gap_stop": 0.036
+},
+"sd_pct": 11.38,
+"bear_years_bp": -162.2
+},
+"CTX|RANDOM|stop 3 ATR, time 40": {
+"trades": 27545,
+"ret_bp": 105.7,
+"ret_t": 1.41,
+"R": 0.123,
+"R_t": 1.93,
+"win": 0.465,
+"bars": 29.8,
+"worst_R": -7.5,
+"share_below_-1.5R": 0.0076,
+"exit_mix": {
+"time": 0.563,
+"stop": 0.383,
+"gap_stop": 0.054
+},
+"sd_pct": 15.66,
+"bear_years_bp": -273.9
+},
+"CTX|RANDOM|stop 2 ATR, trail 3 ATR, no time limit": {
+"trades": 30219,
+"ret_bp": 32.8,
+"ret_t": 0.73,
+"R": 0.083,
+"R_t": 1.55,
+"win": 0.367,
+"bars": 22.3,
+"worst_R": -6.9,
+"share_below_-1.5R": 0.0089,
+"exit_mix": {
+"stop": 0.877,
+"gap_stop": 0.123
+},
+"sd_pct": 13.09,
+"bear_years_bp": -241.6
+},
+"CTX|RANDOM|stop 3 ATR, trail 4 ATR, no time limit": {
+"trades": 24871,
+"ret_bp": 95.6,
+"ret_t": 1.14,
+"R": 0.12,
+"R_t": 1.86,
+"win": 0.391,
+"bars": 37.5,
+"worst_R": -8.5,
+"share_below_-1.5R": 0.0058,
+"exit_mix": {
+"stop": 0.875,
+"gap_stop": 0.125,
+"time": 0.0
+},
+"sd_pct": 19.59,
+"bear_years_bp": -380.1
+},
+"CTX|RANDOM|stop 2 ATR, target 2R, time 20": {
+"trades": 34810,
+"ret_bp": 39.6,
+"ret_t": 1.24,
+"R": 0.079,
+"R_t": 2.01,
+"win": 0.457,
+"bars": 13.2,
+"worst_R": -6.9,
+"share_below_-1.5R": 0.0095,
+"exit_mix": {
+"stop": 0.4,
+"time": 0.358,
+"target": 0.187,
+"gap_stop": 0.054
+},
+"sd_pct": 9.85,
+"bear_years_bp": -119.9
+},
+"CTX|RANDOM|stop 2 ATR, target 3R, time 40": {
+"trades": 30759,
+"ret_bp": 72.3,
+"ret_t": 1.47,
+"R": 0.136,
+"R_t": 2.25,
+"win": 0.378,
+"bars": 21.4,
+"worst_R": -6.9,
+"share_below_-1.5R": 0.0123,
+"exit_mix": {
+"stop": 0.515,
+"time": 0.252,
+"target": 0.163,
+"gap_stop": 0.07
+},
+"sd_pct": 12.93,
+"bear_years_bp": -208.4
+},
+"CTX|RANDOM|time 40, exit after a -3 sigma day": {
+"trades": 25901,
+"ret_bp": 164.8,
+"ret_t": 1.99,
+"R": 0.016,
+"R_t": 1.99,
+"win": 0.525,
+"bars": 34.9,
+"worst_R": -0.8,
+"share_below_-1.5R": 0.0,
+"exit_mix": {
+"time": 0.742,
+"signal": 0.258
+},
+"sd_pct": 16.01,
+"bear_years_bp": -289.7
+},
+"CTX|RANDOM|time 40, exit on close under 20-day average": {
+"trades": 38177,
+"ret_bp": 7.4,
+"ret_t": 0.81,
+"R": 0.001,
+"R_t": 0.81,
+"win": 0.394,
+"bars": 7.7,
+"worst_R": -0.5,
+"share_below_-1.5R": 0.0,
+"exit_mix": {
+"signal": 0.984,
+"time": 0.016
+},
+"sd_pct": 6.79,
+"bear_years_bp": -63.1
+},
+"CTX|RANDOM|time 40, exit on close under prior 10-day low": {
+"trades": 32174,
+"ret_bp": 52.3,
+"ret_t": 1.34,
+"R": 0.005,
+"R_t": 1.34,
+"win": 0.354,
+"bars": 18.3,
+"worst_R": -0.7,
+"share_below_-1.5R": 0.0,
+"exit_mix": {
+"signal": 0.849,
+"time": 0.151
+},
+"sd_pct": 11.73,
+"bear_years_bp": -164.6
+},
+"CTX|RANDOM|stop 3 ATR, time 40, exit after a -3 sigma day": {
+"trades": 28035,
+"ret_bp": 109.7,
+"ret_t": 1.56,
+"R": 0.126,
+"R_t": 2.11,
+"win": 0.46,
+"bars": 28.4,
+"worst_R": -7.5,
+"share_below_-1.5R": 0.007,
+"exit_mix": {
+"time": 0.492,
+"stop": 0.323,
+"signal": 0.139,
+"gap_stop": 0.046
+},
+"sd_pct": 15.2,
+"bear_years_bp": -247.3
+},
+"CTX|TREND|time 10, no stop": {
+"trades": 61234,
+"ret_bp": 8.9,
+"ret_t": 0.47,
+"R": 0.001,
+"R_t": 0.47,
+"win": 0.521,
+"bars": 10.0,
+"worst_R": -0.6,
+"share_below_-1.5R": 0.0,
+"exit_mix": {
+"time": 1.0
+},
+"sd_pct": 6.9,
+"bear_years_bp": -147.9
+},
+"CTX|TREND|time 20, no stop": {
+"trades": 44009,
+"ret_bp": 57.1,
+"ret_t": 1.43,
+"R": 0.006,
+"R_t": 1.43,
+"win": 0.542,
+"bars": 20.0,
+"worst_R": -0.8,
+"share_below_-1.5R": 0.0,
+"exit_mix": {
+"time": 1.0
+},
+"sd_pct": 10.18,
+"bear_years_bp": -259.4
+},
+"CTX|TREND|time 40, no stop": {
+"trades": 29240,
+"ret_bp": 141.9,
+"ret_t": 1.68,
+"R": 0.014,
+"R_t": 1.68,
+"win": 0.552,
+"bars": 40.0,
+"worst_R": -0.9,
+"share_below_-1.5R": 0.0,
+"exit_mix": {
+"time": 1.0
+},
+"sd_pct": 15.2,
+"bear_years_bp": -509.1
+},
+"CTX|TREND|stop 1.5 ATR, time 20": {
+"trades": 51487,
+"ret_bp": 10.0,
+"ret_t": 0.43,
+"R": 0.052,
+"R_t": 0.99,
+"win": 0.367,
+"bars": 12.3,
+"worst_R": -9.2,
+"share_below_-1.5R": 0.0149,
+"exit_mix": {
+"stop": 0.525,
+"time": 0.407,
+"gap_stop": 0.068
+},
+"sd_pct": 7.98,
+"bear_years_bp": -168.9
+},
+"CTX|TREND|stop 2 ATR, time 20": {
+"trades": 47763,
+"ret_bp": 23.7,
+"ret_t": 0.83,
+"R": 0.065,
+"R_t": 1.36,
+"win": 0.439,
+"bars": 14.5,
+"worst_R": -12.4,
+"share_below_-1.5R": 0.0104,
+"exit_mix": {
+"time": 0.522,
+"stop": 0.422,
+"gap_stop": 0.056
+},
+"sd_pct": 8.73,
+"bear_years_bp": -184.2
+},
+"CTX|TREND|stop 3 ATR, time 20": {
+"trades": 45025,
+"ret_bp": 38.0,
+"ret_t": 1.11,
+"R": 0.064,
+"R_t": 1.64,
+"win": 0.51,
+"bars": 17.1,
+"worst_R": -8.3,
+"share_below_-1.5R": 0.005,
+"exit_mix": {
+"time": 0.697,
+"stop": 0.266,
+"gap_stop": 0.037
+},
+"sd_pct": 9.53,
+"bear_years_bp": -215.6
+},
+"CTX|TREND|stop 3 ATR, time 40": {
+"trades": 32345,
+"ret_bp": 95.2,
+"ret_t": 1.57,
+"R": 0.138,
+"R_t": 2.08,
+"win": 0.463,
+"bars": 29.6,
+"worst_R": -8.9,
+"share_below_-1.5R": 0.0072,
+"exit_mix": {
+"time": 0.552,
+"stop": 0.393,
+"gap_stop": 0.056
+},
+"sd_pct": 13.55,
+"bear_years_bp": -326.5
+},
+"CTX|TREND|stop 2 ATR, trail 3 ATR, no time limit": {
+"trades": 35124,
+"ret_bp": 14.4,
+"ret_t": 0.4,
+"R": 0.069,
+"R_t": 1.18,
+"win": 0.361,
+"bars": 21.9,
+"worst_R": -12.4,
+"share_below_-1.5R": 0.0101,
+"exit_mix": {
+"stop": 0.878,
+"gap_stop": 0.122
+},
+"sd_pct": 10.72,
+"bear_years_bp": -268.0
+},
+"CTX|TREND|stop 3 ATR, trail 4 ATR, no time limit": {
+"trades": 25580,
+"ret_bp": 79.7,
+"ret_t": 1.22,
+"R": 0.126,
+"R_t": 1.87,
+"win": 0.391,
+"bars": 37.3,
+"worst_R": -8.3,
+"share_below_-1.5R": 0.0056,
+"exit_mix": {
+"stop": 0.878,
+"gap_stop": 0.122,
+"time": 0.0
+},
+"sd_pct": 16.76,
+"bear_years_bp": -416.0
+},
+"CTX|TREND|stop 2 ATR, target 2R, time 20": {
+"trades": 50816,
+"ret_bp": 22.5,
+"ret_t": 0.93,
+"R": 0.065,
+"R_t": 1.57,
+"win": 0.448,
+"bars": 12.9,
+"worst_R": -12.4,
+"share_below_-1.5R": 0.0101,
+"exit_mix": {
+"stop": 0.418,
+"time": 0.333,
+"target": 0.193,
+"gap_stop": 0.055
+},
+"sd_pct": 7.88,
+"bear_years_bp": -155.1
+},
+"CTX|TREND|stop 2 ATR, target 3R, time 40": {
+"trades": 39223,
+"ret_bp": 57.7,
+"ret_t": 1.43,
+"R": 0.132,
+"R_t": 1.99,
+"win": 0.372,
+"bars": 20.7,
+"worst_R": -13.3,
+"share_below_-1.5R": 0.0127,
+"exit_mix": {
+"stop": 0.531,
+"time": 0.23,
+"target": 0.17,
+"gap_stop": 0.069
+},
+"sd_pct": 10.5,
+"bear_years_bp": -238.6
+},
+"CTX|TREND|time 40, exit after a -3 sigma day": {
+"trades": 30511,
+"ret_bp": 137.2,
+"ret_t": 1.87,
+"R": 0.014,
+"R_t": 1.87,
+"win": 0.525,
+"bars": 35.0,
+"worst_R": -0.8,
+"share_below_-1.5R": 0.0,
+"exit_mix": {
+"time": 0.735,
+"signal": 0.265
+},
+"sd_pct": 14.17,
+"bear_years_bp": -431.6
+},
+"CTX|TREND|time 40, exit on close under 20-day average": {
+"trades": 45114,
+"ret_bp": 19.7,
+"ret_t": 0.74,
+"R": 0.002,
+"R_t": 0.74,
+"win": 0.369,
+"bars": 15.1,
+"worst_R": -0.8,
+"share_below_-1.5R": 0.0,
+"exit_mix": {
+"signal": 0.962,
+"time": 0.038
+},
+"sd_pct": 8.75,
+"bear_years_bp": -175.7
+},
+"CTX|TREND|time 40, exit on close under prior 10-day low": {
+"trades": 36601,
+"ret_bp": 43.8,
+"ret_t": 1.0,
+"R": 0.004,
+"R_t": 1.0,
+"win": 0.406,
+"bars": 22.6,
+"worst_R": -0.8,
+"share_below_-1.5R": 0.0,
+"exit_mix": {
+"signal": 0.808,
+"time": 0.192
+},
+"sd_pct": 11.48,
+"bear_years_bp": -286.4
+},
+"CTX|TREND|stop 3 ATR, time 40, exit after a -3 sigma day": {
+"trades": 32966,
+"ret_bp": 93.4,
+"ret_t": 1.62,
+"R": 0.136,
+"R_t": 2.17,
+"win": 0.458,
+"bars": 28.1,
+"worst_R": -8.9,
+"share_below_-1.5R": 0.0066,
+"exit_mix": {
+"time": 0.475,
+"stop": 0.334,
+"signal": 0.143,
+"gap_stop": 0.048
+},
+"sd_pct": 13.14,
+"bear_years_bp": -314.3
+}
+}
