@@ -28,10 +28,12 @@ import pandas as pd
 from . import pinelike as ta
 
 EVENTS = Path("/home/user/data/earnings/events_devval.parquet")
+EVENTS_SEALED = Path("/home/user/data/earnings/LOCKBOX_SEALED_events_full.parquet")   # read only by a LOCKBOX Study
 
 
 def load(S) -> dict:
-    ev = pd.read_parquet(EVENTS)
+    ev = pd.read_parquet(EVENTS_SEALED if S.sample == "LOCKBOX" else EVENTS)
+    ev["date"] = ev["date"].astype("datetime64[ns]")
     dates = pd.DatetimeIndex(S.dates)
     T, N = S.P.c.shape
     ents = S.ents

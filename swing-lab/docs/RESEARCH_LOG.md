@@ -383,3 +383,62 @@ run again).
 | Dip buying, breakouts, volume signals, momentum/52-week-high selection, squeeze, trend age, CUSUM, variance ratios, calendar | dead on development data (entry 4) |
 
 **Trials:** 63,796 in total, of which 20 on validation data (one run). Lockbox: sealed.
+
+---
+
+## 2026-11-11 (UTC) - Session 2, entry 6: three more families, and the second look at validation
+
+**Erratum.** Entries 4 and 5 are dated 12 Nov; the validation run was executed on 11 Nov 2026 at
+22:57 UTC (registry timestamps are authoritative).
+
+### G40 - FINRA daily short-sale volume (exploration sample DEV_S, Aug 2018 - Jun 2020; 34 cells)
+
+Hypothesis, sign fixed from the literature: heavy short selling is followed by lower returns
+(Diether, Lee & Werner 2009; Boehmer, Jones & Zhang 2008; Wang, Yan & Zheng 2020 on this same
+public file). Coverage: 96% of universe stock-days. The file for day t is published after the
+close, so the base case uses day t-1. A trap avoided: the panel's volume is split-adjusted and
+FINRA's is not; dividing one by the other is wrong by the split factor for every company that
+later split (ratio above 1 on 1% of days until corrected).
+
+| Signal (base case, value of t-1) | 5 bars, bp (t) | 20 bars, bp (t) |
+|---|---|---|
+| Short share of FINRA volume >= 60% | -4 (-1.0) | -7 (-0.6) |
+| Short share <= 30% | +5 (1.1) | +13 (1.1) |
+| Short share 2 st.dev. below its own 20-bar mean | +8 (1.5) | +10 (0.7) |
+| Short volume >= 3x its 20-bar median | +2 (0.2) | +14 (1.0) |
+| Top decile of the 5-bar short share (needs a cross-section; not Pine) | -3 (-0.6) | +6 (0.3) |
+
+**Verdict: dead for this product.** The published sign is there and the size is 5-10 bp over a
+week, a fraction of one round trip. Nothing was carried to `VAL_S`, which stays unread.
+
+### G41 - dip buying in the less liquid bucket ($5-20M median dollar volume; 16 cells x 2 samples)
+
+Kenneth French's small-stock reversal is still about +10% a year after 2010 (entry 3), so the
+bucket deserved a look. On 2011-2018 every dip rule is NEGATIVE against the bucket (5-bar fall of
+2 sigma: -12 bp over 5 bars, t -1.6; RSI(2) < 10 in an uptrend: -11 bp, t -1.5; one-day fall of
+3 sigma: -30 bp, t -3.5), and that sample is biased in favour of dip buying because the companies
+that died are missing. 1998-2010: +25 to +30 bp for the two classic rules, zero for the rest.
+Against a 50 bp round trip. **Dead.**
+
+### Second and last look at validation: drift after earnings reactions
+
+Pre-registered in `docs/04_preregistration_earnings.md` (commit `e7069c7`, pushed before the run).
+Result file `research/results/val_earnings.json`; 24,376 reaction bars.
+
+| ID | Signal on the reaction bar | h | Predicted | Day-weighted bp (t, df) | p | Event-weighted bp (t) | Verdict |
+|---|---|---|---|---|---|---|---|
+| PE1 | Close-to-close move >= +3 sigma | 20 | + | +71 (1.84, 14) | 0.044 (Holm bar 0.025; |t| >= 2 required) | +51 (1.64) | right sign, not significant |
+| PE2 | Close-to-close move <= -3 sigma | 20 | - | +30 (0.76, 15) | 0.77 | +6 (0.17) | wrong sign |
+
+Declared diagnostics (no verdict): PE1 at 5 / 10 / 60 bars: +38 (1.9) / +73 (2.4) / +42 (1.0);
+PE2: +18 / +12 / +328 (1.1). E1 on reaction bars +57 bp (t 1.4, 436 events), E1 on other bars
++91 bp (t 1.4, 364 events): E1 is not only an earnings effect.
+
+**Reading.** Strong positive reactions (to earnings, or a 3-sigma gap on volume that holds) are
+followed by about +50 to +70 bp over the next two to four weeks in every sample looked at, with
+t-statistics between 1.6 and 2.4 and never past the bar set in advance. Bad reactions are not
+followed by further underperformance in 2018-2022: "sell the bad report the next morning" has no
+support. Neither earnings hypothesis joins the lockbox list. The product may describe the upside
+drift as suggestive at most, and only if the lockbox agrees in sign.
+
+**Trials:** see `registry/`; validation looks: two runs (20 + 10 logged outcomes). Lockbox: sealed.

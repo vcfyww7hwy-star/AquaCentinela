@@ -40,9 +40,15 @@ MAX_H = 60
 
 class Study:
     def __init__(self, sample: str = "DEV", adv_min: float | None = None, px_min: float = 5.0,
-                 types=STOCK_TYPES, hs=HS):
+                 types=STOCK_TYPES, hs=HS, panel=None):
         sample = sample.upper()
-        if sample in ("VAL", "VAL_S"):
+        if sample == "LOCKBOX":
+            # only research/confirm/run_lockbox.py builds this, with the panel that
+            # data.open_lockbox() returned (which records the opening in registry/lockbox.json)
+            if panel is None or getattr(panel, "name", "") != "full":
+                raise PermissionError("LOCKBOX needs the panel returned by data.open_lockbox() (protocol section 2).")
+            p = panel
+        elif sample in ("VAL", "VAL_S"):
             if os.environ.get("SWINGLAB_VAL_TOKEN") != "PRE-REGISTERED":
                 raise PermissionError("VAL is for pre-registered confirmations only (protocol section 3). "
                                       "Register the hypothesis in docs/RESEARCH_LOG.md first.")
@@ -52,7 +58,7 @@ class Study:
         elif sample == "CTX":
             p = load_ctx()
         else:
-            raise ValueError("sample must be DEV, CTX, DEV_S, VAL or VAL_S")
+            raise ValueError("sample must be DEV, CTX, DEV_S, VAL, VAL_S or LOCKBOX")
         self.sample, self.p, self.hs = sample, p, tuple(hs)
         self.adv_min = adv_min if adv_min is not None else (5e6 if sample == "CTX" else 20e6)
         self.rows = p.rows(sample)
