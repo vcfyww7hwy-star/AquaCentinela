@@ -215,3 +215,21 @@ validation run) AND event-weighted estimate with the predicted sign and one-side
 If it passes, it is reported as "confirmed on the lockbox after missing significance on
 validation"; if it fails, it is removed. No other directional rule may be added to the list.
 Risk claims R2, R3, R4 and R6 go to the lockbox with their validation criteria unchanged.
+
+### Amendment 3 - 11 Nov 2026 UTC (before the earnings look at validation data; lockbox sealed)
+
+1. **Erratum.** The validation run was executed on 11 Nov 2026 at 22:57 UTC (registry
+   timestamps). Entry 5 of the research log, the pre-registration and amendment 2 give the date
+   as 12 Nov 2026; that is wrong by a few hours.
+2. **Short-sale volume.** The family was explored on `DEV_S` (G40, 34 cells). The published sign
+   appears, but the effects are 5-10 bp over a week, well below a round trip. Nothing is carried
+   to `VAL_S`, which stays unread.
+3. **Earnings drift.** One further pre-registered family of two hypotheses is tested on VAL
+   (`docs/04_preregistration_earnings.md`) under section 3's rule for replications of published
+   effects. It is the last look at that sample.
+4. **Lockbox list.** Amendment 2 said that no directional rule other than E1 may be added. That
+   sentence was written to shut out the failed candidates and variants of E1 invented after the
+   validation run, and it stays in force for those. It is narrowed in one respect: a hypothesis
+   of the earnings family that is *confirmed* under its pre-registered criterion may join the
+   list. Directional rules on the list are then tested with Holm's correction among themselves,
+   which can only make E1's criterion stricter than amendment 2 stated, never looser.
