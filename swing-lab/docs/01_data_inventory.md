@@ -106,3 +106,56 @@ python -m research.data_build.01_export        # dolt tables -> parquet
 python -m research.data_build.02_entities      # entity resolution, split/dividend adjustment, QA
 python -m research.data_build.03_panel         # liquid-universe panel, partitions
 ```
+
+## 5. The research set as built (11 Nov 2026)
+
+Pipeline: `02_entities` (DoltHub cleaning) -> `04_merge` (join with Yahoo) -> `05_panel`.
+
+**Rule.** A security that still trades is taken from Yahoo (continuous, split- and
+spin-off-adjusted). A security that stopped trading is taken from DoltHub. Survivors exist in both
+sources, and that overlap measures how good the DoltHub cleaning is, which is the quality we get
+for the delisted names.
+
+| Step | Count |
+|---|---|
+| DoltHub rows in / kept | 29,556,462 / 29,539,986 (16,476 with a non-positive price dropped) |
+| DoltHub symbols -> entities (split at gaps over 20 trading days) | 21,917 -> 28,610; 2,798 symbols were used by more than one security |
+| Split table rows / confirmed by price / rejected | 4,212 / 3,431 / 781 |
+| Splits found from price and volume that the table lacks | 1,857 (438 two-for-one, 368 three-for-two, 877 reverse) |
+| Yahoo symbols requested / usable | 4,813 / 4,562 |
+| Ended DoltHub entities that were really renames (returns correlate > 0.95 with a Yahoo history) and were dropped | 588 |
+| Tickers taken over by a different company (old company kept as an ended entity) | 5: WCN 2015, IR 2019, DCOM 2019, SAFE 2022, BAM 2022 |
+| Securities on which the two sources disagree about recent history (excluded) | 4: CZR, DOC, GORO, SUPN |
+| Securities in the panel (ever had 60-day median dollar volume >= $5M and price >= $3) | 6,927: 4,684 common, 257 ADR, 1,339 ETF, 416 leveraged/inverse ETF, 231 earlier uses of a ticker |
+| of which stopped trading | 1,710 |
+| Dates | 3,997 (2011-01-03 - 2026-11-10); development + validation copy ends 2022-12-30 (3,029 dates) |
+
+**Agreement between the two sources on survivors** (4,551 securities, 12.3 million security-days):
+close-to-close returns differ by more than 2% on **0.13%** of days and by more than 25% on
+**0.004%** of days. Before Yahoo's split list was used, the DoltHub cleaning alone missed 29% of the
+splits Yahoo records (mostly stock dividends under 25% and ETF splits); that is the residual error
+rate to assume for delisted names, where no second source exists. After 2018, when the DoltHub split
+table has coverage, the misses were about 10 per year across 2,476 symbols.
+
+**Tradable universe** (stocks and ADRs, price >= $5, 60-day median dollar volume as shown):
+
+| Floor | mid-2011 | 2014 | mid-2018 | 2020 | end-2022 |
+|---|---|---|---|---|---|
+| $5M | 1,262 | 1,577 | 2,165 | 2,228 | 2,323 |
+| **$20M (base case)** | 773 | 933 | 1,323 | 1,338 | 1,399 |
+| $50M | 485 | 568 | 770 | 786 | 863 |
+
+In the validation window 2,625 different names were in the $20M universe at some point; 399 of them
+had stopped trading by the end of 2022, 38 of those "for cause" (last price under $2 or a loss of
+more than half in the final 60 bars). In the development window the same count is 233 of 1,752,
+all of them after 2018: the bias stated in section 2.1.
+
+**Checks passed.** SPY total return 3 Jan 2011 - 30 Dec 2022: x3.785 (11.7% a year), in line with
+the published S&P 500 total return. AAPL first adjusted close 11.77, raw 329.57. A hand-computed
+forward return equals the engine's. 0.24% of universe-days have no bar on the next day (holes in the
+source or the end of a listing); those signals cannot be entered and are dropped.
+
+**Known limits.** (1) A renamed company whose new ticker is not in the Yahoo list keeps two
+separate histories; it loses about a year of long-lookback signals after the rename. (2) No
+delisting reasons; the "for cause" rule is a heuristic. (3) Opening prices are each vendor's
+"open", not necessarily the auction print; see the execution study before trusting open fills.
