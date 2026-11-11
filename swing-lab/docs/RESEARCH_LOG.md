@@ -121,3 +121,40 @@ overnight versus intraday (f07), volume (f05), calendar (f08), imports from othe
 
 **Trials so far: 2,881** (E01: 1,440 invalid + 1,440 valid + 1 correction record), all on
 development data. Validation looks: 0. Lockbox: sealed.
+
+---
+
+## 2026-11-11 - Session 2, entry 3: E02, ninety-six years without survivor bias
+
+Source: Kenneth French data library, daily value-weighted portfolios built from CRSP (delisted
+companies included), cut at 2022-12-30. Portfolio level only: this cannot test a chart rule, but
+it says which published effects are still alive in the kind of stocks this project trades.
+Script `research/experiments/e02_french_context.py`; 50 logged cells.
+
+| Effect (percent per year; Newey-West t) | 1963-1989 | 1990-1999 | 2000-2009 | 2010-2022 |
+|---|---|---|---|---|
+| Short-term reversal, BIG stocks: last month's losers minus winners | +18.4 (8.8) | +15.9 (4.1) | +15.8 (2.1) | **+2.7 (0.6)** |
+| Same, SMALL stocks | +43.0 (21.4) | +63.8 (19.5) | +16.8 (2.9) | +10.0 (2.6) |
+| Momentum 12-2, BIG stocks: winners minus losers | +5.6 (2.3) | +7.7 (1.8) | +2.2 (0.3) | **+1.6 (0.3)** |
+| Momentum, BIG winners minus the market (the long side) | +3.0 (2.5) | +3.9 (2.7) | +1.9 (0.7) | +1.1 (0.6) |
+| Same, SMALL stocks: winners minus losers | +11.7 (6.0) | +18.6 (6.7) | +2.1 (0.3) | +5.8 (1.4) |
+| Turn of the month: extra return per day on the last and first three days, bp | +12.2 (4.8) | +9.5 (2.2) | +5.5 (0.8) | +2.7 (0.5) |
+
+| Market-level risk rules, 1926-2022 (next-day execution, 5 bp per switch) | CAGR | Sharpe | Max drawdown |
+|---|---|---|---|
+| Buy and hold | 9.4% | 0.61 | -84% |
+| In the market only above its 200-day average (71% of the time) | 9.7% | 0.88 | -40% |
+| Volatility-managed (15% target, weight capped at 1.5) | 10.7% | 0.75 | -68% |
+
+By era the trend filter raised the Sharpe ratio in 1926-62, 1963-89 and 2000-09, matched it in
+2010-22 (0.72 both, CAGR 8.3% against 12.1%, drawdown -21% against -34%) and lowered it in the 1990s.
+
+**Reading.** The two best-known stock-level effects at these horizons, reversal and momentum, have
+faded to statistical zero in large US stocks since 2010. So has the turn of the month. This agrees
+with E01 on our own panel and is the base rate against which every "edge" in liquid names should be
+judged: the prior that a simple published pattern still pays there is low. What has held for a
+century is the market-level trend filter as a way to cut drawdowns, at a cost in bull decades.
+Status: literature-level context, **untested** as a product claim.
+
+**Trials so far:** 2,931 on development or context data, plus the wave-1 families in progress
+(their own registry files). Validation looks: 0. Lockbox: sealed.
