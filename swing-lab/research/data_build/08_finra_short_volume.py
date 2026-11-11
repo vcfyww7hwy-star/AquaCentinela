@@ -57,10 +57,12 @@ def download() -> None:
 def build() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     frames = []
-    for f in sorted(RAW.glob("*.txt")):
+    for f in sorted(RAW.glob("[0-9]*.txt")):          # the download log lives in the same folder
         try:
             d = pd.read_csv(f, sep="|", dtype={"Symbol": object}, keep_default_na=False, on_bad_lines="skip")
         except Exception:  # noqa: BLE001
+            continue
+        if "Date" not in d.columns:
             continue
         d = d[d["Date"].astype(str).str.fullmatch(r"\d{8}")]
         if d.empty:
