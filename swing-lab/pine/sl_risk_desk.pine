@@ -1,5 +1,5 @@
 //@version=6
-// SL Risk Desk (swing-lab), version 2
+// SL Risk Desk (swing-lab), version 2.1
 //
 // For the stock on the chart: how many shares fit my risk budget, where a stop k ATR away sits and how often
 // such a stop is hit by noise, how far the price usually travels over my holding period, whether an earnings
@@ -41,11 +41,12 @@ bool   i_planAlert = input.bool(false, "Send the plan at each daily close", grou
 
 string G4 = "4 · Look"
 bool   i_showCone  = input.bool(true, "Range cone for the holding period", group = G4)
-bool   i_showEnv   = input.bool(true, "Envelope: where earlier bands said today's close would be", group = G4,
-     tooltip = "The 90% band drawn h bars ago, plotted at the bar it was aiming at. A dot marks a close outside it: about 1 bar in 10. It is a report card for the bands, not a signal.")
+bool   i_showEnv   = input.bool(false, "Envelope: where earlier bands said today's close would be", group = G4,
+     tooltip = "The 90% band drawn h bars ago, plotted at the bar it was aiming at. A dot marks a close outside it: about 1 bar in 10. It is a report card for the bands, not a signal. It widens the price scale, so it is off by default.")
 bool   i_showStop  = input.bool(true, "Stop level", group = G4)
 string i_tableMode = input.string("Full", "Table", options = ["Full", "Compact", "Off"], group = G4)
-string i_tablePos  = input.string("Top right", "Table position", options = ["Top right", "Bottom right", "Top left", "Bottom left"], group = G4)
+string i_tablePos  = input.string("Bottom left", "Table position", options = ["Bottom left", "Bottom right", "Top left", "Top right"], group = G4,
+     tooltip = "Bottom left keeps the table away from the cone and the stop. Top left sits under the chart's own legend.")
 string i_textSize  = input.string("Small", "Text size", options = ["Tiny", "Small", "Normal"], group = G4)
 color  i_cAccent   = input.color(#4C8BF5, "Accent", group = G4)
 color  i_cStop     = input.color(#E5484D, "Stop", group = G4)
@@ -179,8 +180,6 @@ float lo05 = px * math.exp(Q05 * unit)
 float lo25 = px * math.exp(Q25 * unit)
 float hi75 = px * math.exp(Q75 * unit)
 float hi95 = px * math.exp(Q95 * unit)
-float rLo05 = Q05 * math.sqrt(i_hold) / i_stopK         // the same lines in units of the risk taken (R), to first order
-float rHi95 = Q95 * math.sqrt(i_hold) / i_stopK
 
 float cov90   = nAud > 0 ? 100.0 * in90 / nAud : na
 float cov50   = nAud > 0 ? 100.0 * in50 / nAud : na
@@ -229,13 +228,10 @@ if barstate.isconfirmed
              str.tostring(held, "#"), str.tostring(rNow, "#.##")), alert.freq_once_per_bar_close)
 
 // ─────────────────────────────────────────────────────────────── envelope: the report card of the bands
-color cEnvLine = i_showEnv ? color.new(i_cAccent, 62) : na
-plotE05 = plot(env05, "Envelope 5pct",  color = cEnvLine, linewidth = 1)
-plotE95 = plot(env95, "Envelope 95pct", color = cEnvLine, linewidth = 1)
-plotE25 = plot(env25, "Envelope 25pct", color = na)
-plotE75 = plot(env75, "Envelope 75pct", color = na)
-fill(plotE05, plotE95, color = i_showEnv ? color.new(i_cAccent, 93) : na, title = "Envelope, 90%")
-fill(plotE25, plotE75, color = i_showEnv ? color.new(i_cAccent, 90) : na, title = "Envelope, middle half")
+// Plotted only when asked for: a visible plot stretches the price scale, an na plot does not.
+plotLo = plot(i_showEnv ? env05 : na, "Envelope, lower line", color = color.new(i_cAccent, 60), linewidth = 1)
+plotHi = plot(i_showEnv ? env95 : na, "Envelope, upper line", color = color.new(i_cAccent, 60), linewidth = 1)
+fill(plotLo, plotHi, color = color.new(i_cAccent, 94), title = "Envelope")
 plotshape(i_showEnv and isDaily and close > env95, "Close above the envelope", style = shape.circle, location = location.abovebar,
      color = color.new(i_cWarn, 15), size = size.tiny)
 plotshape(i_showEnv and isDaily and close < env05, "Close below the envelope", style = shape.circle, location = location.belowbar,
@@ -258,8 +254,22 @@ f_clearDrawings() =>
     gLines.clear()
     gLabels.clear()
 
-f_tag(int x, float y, string txt, color c) =>
-    gLabels.push(label.new(x, y, txt, style = label.style_label_left, color = color.new(c, 100), textcolor = c, size = size.small))
+// labels sit to the LEFT of their anchor, above the upper lines and below the lower ones, so they stay inside the
+// chart's right margin and never lie on a line
+f_tag(int x, float y, string txt, color c, bool above) =>
+    gLabels.push(label.new(x, y, txt, style = above ? label.style_label_lower_right : label.style_label_upper_right, color = color.new(c, 100),
+         textcolor = c, size = size.small))
+
+// R of a price level: against the planned stop before the trade, against the real entry and stop once in it
+f_rOf(float level) =>
+    posOn ? (level - i_entryPx) / riskPS : stopDist > 0 ? (level - px) / stopDist : na
+
+f_signed(float x) =>
+    na(x) ? "-" : (x >= 0 ? "+" : "") + str.tostring(x, "#.##")
+
+f_rText(float level) =>
+    float r = f_rOf(level)
+    na(r) ? "" : "   " + f_signed(r) + " R"
 
 if barstate.islast
     f_clearDrawings()
@@ -274,36 +284,31 @@ if barstate.islast
         line ln75 = line.new(x0, isDaily ? px : hi75, x1, hi75, color = color.new(i_cAccent, 55), style = line.style_dotted)
         gLines.push(ln05), gLines.push(ln95), gLines.push(ln25), gLines.push(ln75)
         gFills.push(linefill.new(ln05, ln95, color.new(i_cAccent, 90)))
-        gFills.push(linefill.new(ln25, ln75, color.new(i_cAccent, 82)))
-        f_tag(x1, hi95, "95%   " + str.tostring(hi95, format.mintick) + "   +" + str.tostring(rHi95, "#.##") + " R", i_cAccent)
-        f_tag(x1, hi75, "75%   " + str.tostring(hi75, format.mintick), color.new(i_cAccent, 35))
-        f_tag(x1, lo25, "25%   " + str.tostring(lo25, format.mintick), color.new(i_cAccent, 35))
-        f_tag(x1, lo05, "5%   " + str.tostring(lo05, format.mintick) + "   " + str.tostring(rLo05, "#.##") + " R", i_cAccent)
+        gFills.push(linefill.new(ln25, ln75, color.new(i_cAccent, 84)))
+        f_tag(x1, hi95, "95%   " + str.tostring(hi95, format.mintick) + f_rText(hi95), i_cAccent, true)
+        f_tag(x1, hi75, "75%   " + str.tostring(hi75, format.mintick), color.new(i_cAccent, 35), true)
+        f_tag(x1, lo25, "25%   " + str.tostring(lo25, format.mintick), color.new(i_cAccent, 35), false)
+        f_tag(x1, lo05, "5%   " + str.tostring(lo05, format.mintick) + f_rText(lo05), i_cAccent, false)
         if isDaily and eInside and nextE > time
             gLines.push(line.new(nextE, lo05, nextE, hi95, xloc = xloc.bar_time, color = color.new(i_cWarn, 20), style = line.style_dashed, width = 1))
             gLabels.push(label.new(nextE, hi95, "Earnings", xloc = xloc.bar_time, style = label.style_label_down, color = color.new(i_cWarn, 80),
                  textcolor = i_cWarn, size = size.small))
+    int xPos = posOn and not na(entryBar) ? math.max(entryBar, bar_index - 400) : bar_index - 4
     if i_showStop and not na(stopPx)
         float s = posOn ? i_stopHeld : stopPx
-        gLines.push(line.new(posOn and not na(entryBar) ? math.max(entryBar, bar_index - 400) : bar_index - 4, s, x1, s, color = color.new(i_cStop, 10),
-             style = line.style_dashed, width = 2))
-        gLabels.push(label.new(bar_index - 4, s, posOn ? "Stop   " + str.tostring(s, format.mintick) :
-             "Stop   " + str.tostring(i_stopK, "#.##") + " ATR   " + str.tostring(s, format.mintick) + "   noise hits it " + str.tostring(100.0 * pStop, "#") + "% of the time",
+        gLines.push(line.new(xPos, s, x1, s, color = color.new(i_cStop, 10), style = line.style_dashed, width = 2))
+        gLabels.push(label.new(xPos, s, "Stop   " + str.tostring(s, format.mintick) + (posOn ? "" : "   ·   " + str.tostring(i_stopK, "#.##") + " ATR"),
              style = label.style_label_upper_right, color = color.new(i_cStop, 100), textcolor = i_cStop, size = size.small))
     if posOn and not na(entryBar)
-        int xe = math.max(entryBar, bar_index - 400)
-        gLines.push(line.new(xe, i_entryPx, x1, i_entryPx, color = color.new(i_cAccent, 20), width = 1))
-        f_tag(x1, i_entryPx, "Entry   " + str.tostring(i_entryPx, format.mintick), i_cAccent)
-        for m = 1 to 2
-            float lvl = i_entryPx + m * riskPS
-            gLines.push(line.new(xe, lvl, x1, lvl, color = color.new(i_cGood, 60), style = line.style_dotted))
-            f_tag(x1, lvl, "+" + str.tostring(m) + " R   " + str.tostring(lvl, format.mintick), color.new(i_cGood, 20))
+        gLines.push(line.new(xPos, i_entryPx, x1, i_entryPx, color = color.new(i_cAccent, 20), width = 1))
+        gLabels.push(label.new(xPos, i_entryPx, "Entry   " + str.tostring(i_entryPx, format.mintick), style = label.style_label_right,
+             color = color.new(i_cAccent, 100), textcolor = i_cAccent, size = size.small))
         if isDaily
             int xt = entryBar + i_hold - 1
             if xt >= bar_index - 400 and xt <= bar_index + 400
-                gLines.push(line.new(xt, i_stopHeld, xt, i_entryPx + 2 * riskPS, color = color.new(chart.fg_color, 55), style = line.style_dotted))
-                gLabels.push(label.new(xt, i_entryPx + 2 * riskPS, "day " + str.tostring(i_hold), style = label.style_label_down,
-                     color = color.new(chart.fg_color, 100), textcolor = color.new(chart.fg_color, 30), size = size.small))
+                gLines.push(line.new(xt, i_stopHeld, xt, math.max(hi95, i_entryPx), color = color.new(chart.fg_color, 55), style = line.style_dotted))
+                gLabels.push(label.new(xt, i_stopHeld, "day " + str.tostring(i_hold), style = label.style_label_up, color = color.new(chart.fg_color, 100),
+                     textcolor = color.new(chart.fg_color, 30), size = size.small))
 
 // ─────────────────────────────────────────────────────────────── table (last bar)
 f_tablePos(string s) =>
@@ -313,8 +318,8 @@ string TS      = i_textSize == "Tiny" ? size.tiny : i_textSize == "Small" ? size
 color  C_FG    = chart.fg_color
 color  C_MUTED = color.new(chart.fg_color, 45)
 
-var table tb = table.new(f_tablePos(i_tablePos), 3, 22, bgcolor = color.new(chart.bg_color, 6), frame_color = color.new(chart.fg_color, 78),
-     frame_width = 1, border_width = 0)
+int TABLE_ROWS = 20
+var table tb = na
 
 f_section(int r, string title) =>
     table.cell(tb, 0, r, title, text_halign = text.align_left, text_size = TS, text_color = i_cAccent, bgcolor = color.new(i_cAccent, 88))
@@ -329,14 +334,22 @@ f_row(int r, string k, string v, color vc, string tag, string tip) =>
          tag == "S" ? "Suggestive: held on validation data, not confirmed on the set-aside data." :
          tag == "U" ? "Untested: calibrated on all data." : "")
 
+f_int(float x) =>
+    na(x) ? "-" : str.format("{0,number,integer}", x)
+
 if barstate.islast and i_tableMode != "Off"
-    table.clear(tb, 0, 0, 2, 21)
+    // a fresh table on every update: no stale rows or merged cells when the layout changes
+    if not na(tb)
+        table.delete(tb)
+    tb := table.new(f_tablePos(i_tablePos), 3, TABLE_ROWS, bgcolor = color.new(chart.bg_color, 6), frame_color = color.new(chart.fg_color, 78),
+         frame_width = 1, border_width = 0)
     bool   full = i_tableMode == "Full"
     string hb   = str.tostring(i_hold) + " bars"
     string cur  = syminfo.currency
+    string SEP  = "  ·  "
     int    r    = 0
     table.cell(tb, 0, r, "SL RISK DESK", text_halign = text.align_left, text_size = TS, text_color = color.white, bgcolor = i_cAccent)
-    table.cell(tb, 1, r, syminfo.ticker + "   ·   hold " + hb + "   ·   stop " + str.tostring(i_stopK, "#.##") + " ATR", text_halign = text.align_left,
+    table.cell(tb, 1, r, syminfo.ticker + SEP + "hold " + hb + SEP + "stop " + str.tostring(i_stopK, "#.##") + " ATR", text_halign = text.align_left,
          text_size = TS, text_color = color.white, bgcolor = i_cAccent)
     table.cell(tb, 2, r, "", bgcolor = i_cAccent)
     r += 1
@@ -344,72 +357,70 @@ if barstate.islast and i_tableMode != "Off"
         f_section(r, "POSITION")
         r += 1
         if posOn
-            f_row(r, "Now", (rNow >= 0 ? "+" : "") + str.tostring(rNow, "#.##") + " R   ·   day " + str.tostring(held, "#") + " of " + str.tostring(i_hold) +
-                 (timeUp ? "   ·   HOLDING PERIOD COMPLETE" : ""), stopHit ? i_cStop : timeUp ? i_cWarn : rNow >= 0 ? i_cGood : C_FG, "",
+            f_row(r, "Now", f_signed(rNow) + " R" + SEP + "day " + str.tostring(held, "#") + " of " + str.tostring(i_hold) +
+                 (timeUp ? SEP + "TIME UP" : ""), stopHit ? i_cStop : timeUp ? i_cWarn : rNow >= 0 ? i_cGood : C_FG, "",
                  "R = (price - entry) / (entry - stop). Day 1 is the entry day. At the end of the holding period, exit or start a new period with new numbers.")
             r += 1
-            f_row(r, "Entry / stop", str.tostring(i_entryPx, format.mintick) + "  /  " + str.tostring(i_stopHeld, format.mintick) + "   ·   1 R = " +
-                 str.tostring(riskPS, format.mintick) + " a share", C_FG, "", "The stop you entered. The real stop is an order at your broker; the alert is a backstop.")
+            f_row(r, "Entry / stop", str.tostring(i_entryPx, format.mintick) + " / " + str.tostring(i_stopHeld, format.mintick) + SEP + "1 R = " +
+                 str.tostring(riskPS, format.mintick), C_FG, "", "The entry and stop you typed in. The real stop is an order at your broker; the alert is a backstop.")
             r += 1
             if full and i_sharesHeld > 0
-                f_row(r, "Result so far", str.format("{0,number,integer}", i_sharesHeld * (close - i_entryPx)) + " " + cur + "   ·   at the stop: " +
-                     str.format("{0,number,integer}", i_sharesHeld * (i_stopHeld - i_entryPx)) + " " + cur, C_FG, "", "Shares held x (price - entry), and what the stop costs if it fills at its price.")
+                f_row(r, "Result", f_int(i_sharesHeld * (close - i_entryPx)) + " " + cur + SEP + "at the stop " + f_int(i_sharesHeld * (i_stopHeld - i_entryPx)), C_FG, "",
+                     "Shares held x (price - entry), and what the position ends at if the stop fills at its price.")
                 r += 1
         else
-            f_row(r, "Setup", "enter the entry price, a stop below it and the entry date", i_cWarn, "", "Settings > Inputs > Open position.")
+            f_row(r, "Setup", "type in the entry, a stop below it and the date", i_cWarn, "", "Settings > Inputs > Open position.")
             r += 1
     else
-        f_section(r, "PLAN   if bought at the next open")
+        f_section(r, "PLAN" + SEP + "if bought at the next open")
         r += 1
-        f_row(r, "Buy", str.format("{0,number,integer}", shares) + " shares   ·   " + str.format("{0,number,integer}", posValue) + " " + cur + "   ·   " +
-             str.tostring(posPct, "#.#") + "% of equity" + (capped ? "  (capped)" : ""), capped ? i_cWarn : C_FG, "",
-             "Shares = risk budget / stop distance, capped by the largest position. Every position then risks the same money, whatever the stock.")
+        f_row(r, "Buy", f_int(shares) + " shares" + SEP + f_int(posValue) + " " + cur + SEP + str.tostring(posPct, "#.#") + "%" + (capped ? " (capped)" : ""),
+             capped ? i_cWarn : C_FG, "", "Shares = risk budget / stop distance, capped by the largest position. Every position then risks the same money, whatever the stock. The percentage is the share of account equity.")
         r += 1
-        f_row(r, "Stop", str.tostring(stopPx, format.mintick) + "   ·   " + str.tostring(stopDist, format.mintick) + " below the fill   ·   " +
-             str.tostring(100.0 * stopDist / px, "#.#") + "%", C_FG, "", "Place the stop this distance below your actual fill, not below today's close.")
+        f_row(r, "Stop", str.tostring(stopPx, format.mintick) + SEP + str.tostring(stopDist, format.mintick) + " below the fill", C_FG, "",
+             "Place the stop this distance below your actual fill, not below today's close. That is " + str.tostring(100.0 * stopDist / px, "#.#") + "% of the price.")
         r += 1
         if full
-            f_row(r, "Money at risk", str.format("{0,number,integer}", riskTaken) + " " + cur + "   ·   " + str.tostring(i_equity > 0 ? 100.0 * riskTaken / i_equity : na, "#.##") +
-                 "% of equity", C_FG, "", "What the trade loses if the stop fills at its price. About 15% of stops fill below it, and about 1 trade in 100 loses more than 1.5 times this.")
+            f_row(r, "At risk", f_int(riskTaken) + " " + cur + SEP + str.tostring(i_equity > 0 ? 100.0 * riskTaken / i_equity : na, "#.##") + "% of equity", C_FG, "",
+                 "What the trade loses if the stop fills at its price. About 15% of stops fill below it, and about 1 trade in 100 loses more than 1.5 times this.")
             r += 1
-        f_row(r, "Noise hits the stop", str.tostring(100.0 * pStop, "#") + "% of the time within " + hb, C_FG, "D",
-             "Share of stocks bought with no signal at all whose stop at this distance was hit inside the holding period. On 2023-2026 the 18-cell table was within 1.7 points.")
+        f_row(r, "Stop hit by noise", str.tostring(100.0 * pStop, "#") + "% within " + hb, C_FG, "D",
+             "Share of stocks bought with no signal at all whose stop at this distance was hit inside the holding period. On 2023-2026 the 18-cell table was within 1.7 points. Between table points the figure is a straight line.")
         r += 1
-    f_section(r, "RANGE   where the close lands in " + hb)
+    f_section(r, "RANGE" + SEP + "close in " + hb)
     r += 1
-    f_row(r, "9 closes in 10", str.tostring(lo05, format.mintick) + "  to  " + str.tostring(hi95, format.mintick) + "   ·   " + str.tostring(rLo05, "#.##") + " R to +" +
-         str.tostring(rHi95, "#.##") + " R", C_FG, "D", "The outer lines of the cone. On 2023-2026 this band held 89.6% to 89.9% of closes. R is the risk taken with the stop above.")
+    f_row(r, "9 in 10", str.tostring(lo05, format.mintick) + " – " + str.tostring(hi95, format.mintick) + SEP + f_signed(f_rOf(lo05)) + " R / " +
+         f_signed(f_rOf(hi95)) + " R", C_FG, "D", "The outer lines of the cone: 9 closes in 10 land between them. On 2023-2026 this band held 89.6% to 89.9% of closes. R is measured against the stop: the planned one before the trade, yours once you hold.")
     r += 1
     if full
-        f_row(r, "1 close in 2", str.tostring(lo25, format.mintick) + "  to  " + str.tostring(hi75, format.mintick), C_FG, "D",
-             "The dotted lines of the cone. On 2023-2026 this band held 48.8% to 50.0% of closes.")
+        f_row(r, "1 in 2", str.tostring(lo25, format.mintick) + " – " + str.tostring(hi75, format.mintick), C_FG, "D",
+             "The dotted lines of the cone: half of the closes land between them. On 2023-2026 this band held 48.8% to 50.0% of closes.")
         r += 1
-        f_row(r, "This stock's record", nAud > 0 ? "90% band held " + str.tostring(cov90, "#.#") + "%   ·   half " + str.tostring(cov50, "#.#") + "%   ·   stop hit " +
-             str.tostring(covStop, "#.#") + "%" : "not enough history", nAud > 0 and cov90 < 85.0 ? i_cWarn : C_FG, "",
-             "The same three figures measured on this symbol's own history (" + str.tostring(nAud, "#") + " windows). A stock whose 90% band held less than 85% jumps more than most.")
+        f_row(r, "This stock", nAud > 0 ? "90%: " + str.tostring(cov90, "#.#") + SEP + "50%: " + str.tostring(cov50, "#.#") + SEP + "stop: " + str.tostring(covStop, "#.#") :
+             "not enough history", nAud > 0 and cov90 < 85.0 ? i_cWarn : C_FG, "",
+             "The same three figures measured on this symbol's own history (" + str.tostring(nAud, "#") + " windows): how often its 90% band and its middle half held, and how often this stop was hit. Below 85% on the first, the stock jumps more than most.")
         r += 1
     f_section(r, "EVENTS")
     r += 1
-    f_row(r, "Earnings", not eKnown ? "no date on file" : "in about " + str.tostring(sessToE, "#") + " sessions   ·   " + (eInside ? "INSIDE the holding period" :
-         "outside the holding period"), eInside ? i_cStop : C_FG, "", "Date from TradingView, read when the script loads. Sessions are estimated from calendar days.")
+    f_row(r, "Earnings", not eKnown ? "no date on file" : "~" + str.tostring(sessToE, "#") + " sessions" + SEP + (eInside ? "INSIDE the period" : "outside the period"),
+         eInside ? i_cStop : C_FG, "", "Date from TradingView, read when the script loads. Sessions are estimated from calendar days.")
     r += 1
     if full or eInside
-        f_row(r, "Earnings night", "gap against you beyond 1 / 2 / 3 ATR: " + str.tostring(100.0 * E_GAP1, "#") + "% / " + str.tostring(100.0 * E_GAP2, "#") + "% / " +
-             str.tostring(100.0 * E_GAP3, "#") + "%   ·   2 ATR = " + str.tostring(-2.0 / i_stopK, "#.##") + " R", eInside ? i_cWarn : C_FG, "U",
-             "An earnings night is at least 20 times likelier than an ordinary night to gap 2 ATR against the holder (demonstrated). The exact odds vary by year: 15-27%, 5-15%, 3-8%.")
+        f_row(r, "Earnings night", "1 in 10 gaps over 2 ATR", eInside ? i_cWarn : C_FG, "U",
+             "Opening gap against the holder beyond 1 / 2 / 3 ATR: about " + str.tostring(100.0 * E_GAP1, "#") + "% / " + str.tostring(100.0 * E_GAP2, "#") + "% / " +
+             str.tostring(100.0 * E_GAP3, "#") + "% of reports (by year 15-27%, 5-15%, 3-8%). 2 ATR is " + str.tostring(-2.0 / i_stopK, "#.##") +
+             " R before the stop can act. That such a night is at least 20 times riskier than an ordinary one is demonstrated; the exact odds are not.")
         r += 1
-    f_row(r, "Index", not mktKnown ? "no data" : mktUp ? syminfo.ticker(i_mkt) + " above its 200-day average" :
-         syminfo.ticker(i_mkt) + " BELOW its 200-day average   ·   about twice as volatile", mktUp or not mktKnown ? C_FG : i_cWarn, "S",
+    f_row(r, "Index", not mktKnown ? "no data" : mktUp ? syminfo.ticker(i_mkt) + " above its 200-day avg" : syminfo.ticker(i_mkt) + " BELOW its 200-day avg",
+         mktUp or not mktKnown ? C_FG : i_cWarn, "S",
          "Below its 200-day average the index has been about twice as volatile. It has not meant lower returns, and on 2023-2026 it did not mean more losing stocks.")
     r += 1
     if full or not inUniverse
-        f_row(r, "Tested universe", inUniverse ? "inside   ·   5 or more a share, 20M or more traded a day" : isStock ? "OUTSIDE   ·   under 5 a share or under 20M a day: odds not tested here" :
-             "OUTSIDE   ·   not a stock: odds not tested here", inUniverse ? C_FG : i_cWarn, "",
-             "The research covered US stocks at 5 dollars or more with a 60-day median of 20 million dollars traded a day.")
+        f_row(r, "Universe", inUniverse ? "inside" : "OUTSIDE" + SEP + "odds not tested here", inUniverse ? C_FG : i_cWarn, "",
+             "The research covered US stocks at 5 dollars or more with a 60-day median of 20 million dollars traded a day. Outside it the odds in this table were not tested.")
         r += 1
-    table.cell(tb, 0, r, "D demonstrated   ·   S suggestive   ·   U untested   ·   " + (isDaily ? "daily values, final at the close" :
-         isIntra ? "daily values of the last completed day" : "daily values of the last daily bar") + "   ·   hover a row for its meaning",
-         text_halign = text.align_left, text_size = size.tiny, text_color = C_MUTED)
+    table.cell(tb, 0, r, "D demonstrated" + SEP + "S suggestive" + SEP + "U untested" + SEP + "hover a row", text_halign = text.align_left, text_size = size.tiny,
+         text_color = C_MUTED, tooltip = isDaily ? "Daily values, final at the close." : isIntra ? "Daily values of the last completed day." : "Daily values of the last daily bar.")
     table.merge_cells(tb, 0, r, 2, r)
 
 // ─────────────────────────────────────────────────────────────── values for the Data Window, CSV export and the Pine Screener
@@ -432,3 +443,7 @@ plot(inUniverse ? 1 : 0, "Inside tested universe", display = display.data_window
 plot(sessToE,   "Sessions to earnings",         display = display.data_window)
 plot(mktKnown ? (mktUp ? 1 : 0) : na, "Index above 200d", display = display.data_window)
 plot(rNow,      "Position R",                   display = display.data_window)
+plot(env05,     "Envelope 5pct",                display = display.data_window)
+plot(env25,     "Envelope 25pct",               display = display.data_window)
+plot(env75,     "Envelope 75pct",               display = display.data_window)
+plot(env95,     "Envelope 95pct",               display = display.data_window)

@@ -62,11 +62,11 @@ def main() -> None:
     wide = lambda k, v, tag="", c=FG: f'<tr><td class="k">{k}</td><td colspan="5" style="color:{c}">{v}</td><td class="t" style="color:{GOOD if tag else MUTED}">{tag}</td></tr>'
     rows += ['<tr><td class="s" colspan="7">BOOK</td></tr>',
              wide("Invested", f'{100 * tw["exposure"]:.1f}% of equity&nbsp;&nbsp;·&nbsp;&nbsp;result so far {tw["result"]:+,.0f}'.replace("-", "−")),
-             wide("Open risk", f'{100 * tw["open_risk"]:.2f}% of equity if every stop fills at its price&nbsp;&nbsp;·&nbsp;&nbsp;limit 6%', "D"),
-             wide(f"9 outcomes in 10, {HOLD} bars", f'{100 * lo:.1f}% to +{100 * hi:.1f}% of equity&nbsp;&nbsp;·&nbsp;&nbsp;{lo * EQUITY:,.0f} to +{hi * EQUITY:,.0f}'.replace("-", "−"), "C"),
-             wide("1 outcome in 2", f'{100 * hlo:.1f}% to +{100 * hhi:.1f}% of equity'.replace("-", "−"), "C"),
+             wide("Open risk", f'{100 * tw["open_risk"]:.2f}% of equity if every stop fills at its price&nbsp;&nbsp;·&nbsp;&nbsp;limit 6%'),
+             wide("Range, 9 in 10", f'{100 * lo:.1f}% to +{100 * hi:.1f}% of equity&nbsp;&nbsp;·&nbsp;&nbsp;{lo * EQUITY:,.0f} to +{hi * EQUITY:,.0f}'.replace("-", "−"), "C"),
+             wide("Range, 1 in 2", f'{100 * hlo:.1f}% to +{100 * hhi:.1f}% of equity'.replace("-", "−"), "C"),
              wide("Diversification", f'behaves like {tw["n_eff"]:.1f} independent positions, of {tw["n_active"]}&nbsp;&nbsp;·&nbsp;&nbsp;average correlation {tw["rho_avg"]:.2f}'),
-             '<tr><td class="f" colspan="7">D demonstrated&nbsp;&nbsp;·&nbsp;&nbsp;C checked once on 2023-26&nbsp;&nbsp;·&nbsp;&nbsp;daily values, final at the close&nbsp;&nbsp;·&nbsp;&nbsp;hover a cell</td></tr>']
+             '<tr><td class="f" colspan="7">C checked once on 2023-26&nbsp;&nbsp;·&nbsp;&nbsp;daily values, final at the close&nbsp;&nbsp;·&nbsp;&nbsp;hover a cell</td></tr>']
     out = f"""<!doctype html><html><head><meta charset="utf-8"><style>
 body{{margin:0;background:{BG};font-family:Inter,'Helvetica Neue',Arial,'DejaVu Sans',sans-serif;}}
 #wrap{{display:inline-block;padding:26px 30px 16px 30px;background:{BG};}}

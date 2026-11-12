@@ -320,20 +320,20 @@ if barstate.islast
              "Sum of the positions' values over account equity. Above 100% the book is leveraged.")
         row += 1
         f_wide(row, "Open risk", str.tostring(100.0 * openRisk, "#.##") + "% of equity if every stop fills at its price   ·   limit " + str.tostring(i_heatMax, "#.#") + "%",
-             hot ? i_cStop : C_FG, "D", "The sum of the 'At risk' column. About 15% of stops fill below their price and about 1 trade in 100 loses more than 1.5 times its planned risk.")
+             hot ? i_cStop : C_FG, "", "The sum of the 'At risk' column: arithmetic. It is a floor, not a ceiling: about 15% of stops fill below their price and about 1 trade in 100 loses more than 1.5 times its planned risk (both demonstrated on 2023-2026).")
         row += 1
-        f_wide(row, "9 outcomes in 10, " + hb, na(sP) ? "-" : str.tostring(100.0 * bandLo, "#.#") + "% to +" + str.tostring(100.0 * bandHi, "#.#") + "% of equity   ·   " +
+        f_wide(row, "Range, 9 in 10", na(sP) ? "-" : str.tostring(100.0 * bandLo, "#.#") + "% to +" + str.tostring(100.0 * bandHi, "#.#") + "% of equity   ·   " +
              str.format("{0,number,integer}", bandLo * i_equity) + " to +" + str.format("{0,number,integer}", bandHi * i_equity), C_FG, "C",
-             "How far the whole book usually moves over the holding period if nothing is sold, given each position's ATR and how the positions have moved together over the last 60 days. On 2023-2026 this band held 88.9% to 90.2% of outcomes for books of 2 to 10 positions. Stops are ignored.")
+             "How far the whole book usually moves over the next " + hb + " if nothing is sold, given each position's ATR and how the positions have moved together over the last 60 days. On 2023-2026 this band held 88.9% to 90.2% of outcomes for books of 2 to 10 positions. Stops are ignored.")
         row += 1
-        f_wide(row, "1 outcome in 2", na(sP) ? "-" : str.tostring(100.0 * halfLo, "#.#") + "% to +" + str.tostring(100.0 * halfHi, "#.#") + "% of equity", C_FG, "C",
+        f_wide(row, "Range, 1 in 2", na(sP) ? "-" : str.tostring(100.0 * halfLo, "#.#") + "% to +" + str.tostring(100.0 * halfHi, "#.#") + "% of equity", C_FG, "C",
              "On 2023-2026 this band held 45.9% to 49.8% of outcomes.")
         row += 1
         f_wide(row, "Diversification", na(nEff) ? "-" : "behaves like " + str.tostring(nEff, "#.#") + " independent positions, of " + str.tostring(nActive) +
              (na(rhoAvg) ? "" : "   ·   average correlation " + str.tostring(rhoAvg, "#.##")), not na(nEff) and nActive >= 3 and nEff < 0.5 * nActive ? i_cWarn : C_FG, "",
              "Arithmetic on the last 60 daily returns. Ten positions that behave like three are three bets, not ten.")
         row += 1
-    table.cell(tb, 0, row, "D demonstrated   ·   C checked once on 2023-26   ·   daily values, final at the close   ·   hover a cell for its meaning",
+    table.cell(tb, 0, row, "C checked once on 2023-26   ·   daily values, final at the close   ·   hover a cell for its meaning",
          text_halign = text.align_left, text_size = size.tiny, text_color = C_MUTED)
     table.merge_cells(tb, 0, row, COLS - 1, row)
 

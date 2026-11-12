@@ -1,21 +1,23 @@
 # Verification of the Pine scripts
 
-Status on 11 Nov 2026 (UTC). The ladder is the one fixed in `00_protocol.md`, section 7.
+Status on 12 Nov 2026 (UTC). The ladder is the one fixed in `00_protocol.md`, section 7.
 
-| Level | What it proves | `sl_risk_desk.pine` | `sl_odds_check.pine` |
-|---|---|---|---|
-| 1 Compiles under TradingView's compiler | Syntax and types | **Done**: 0 errors, 0 warnings | **Done**: 0 errors, 0 warnings |
-| 1b Constants | The numbers typed into the script are the ones tested on the lockbox | **Done**: read from the Pine source by `tools/parity_check.py constants`; identical | **Done** |
-| 2a Transliteration | The formulas, as written in the script, equal the research code on real bars | **Done**: 0 difference on about 82,000 daily bars of seven symbols (AAPL, NVDA, GE, KO, TSLA, MSFT, XOM), three parameter sets (band variable, both coverage flags); stop outcomes identical to the research simulator on 100.000% of bars | Rests on the same simulator |
-| 2b Executes in an open-source Pine runtime (PineTS) | The script itself runs and produces those numbers | **Not done: blocked.** The session's safety classifier refused to execute the third-party package. Needs the owner's permission | Not done, same reason |
-| 3 Matches on TradingView | The script running on TradingView produces the research numbers on TradingView's bars | **Waiting for an export** (steps below) | n/a |
-| 4 Does not repaint | A later export reproduces the earlier one for closed bars | Waiting for a second export on a later day | n/a |
-| 5 Strategy twin agrees | The Strategy Tester's trades equal the research simulator's, trade for trade | n/a | **Waiting for an export** (steps below) |
+| Level | What it proves | `sl_risk_desk.pine` (v2.1) | `sl_portfolio_desk.pine` | `sl_odds_check.pine` |
+|---|---|---|---|---|
+| 1 Compiles under TradingView's compiler | Syntax and types | **Done**: 0 errors, 0 warnings | **Done**: 0 / 0 | **Done**: 0 / 0 |
+| 1b Constants | The numbers typed into the script are the ones that were tested | **Done**: identical to the lockbox tables | **Done**: identical to the constants committed before their check | **Done** |
+| 2a Transliteration | The formulas, as written in the script, equal the research code on real bars | **Done**: 0 difference on about 82,000 daily bars of seven symbols (band variable, coverage flags, envelope); stop outcomes identical to the research simulator on every bar | **Done** for the book's scale: the transliteration gives the same s_p as the calibration formula (difference below 1e-12) | Rests on the same simulator |
+| 2c Independent review | Four reviewers with different lenses (runtime, data requests and alerts, rendering, logic) read both indicators against TradingView's documentation; a skeptic tried to refute each finding | See "Independent review" below | same | not reviewed in this round |
+| 2b Executes in an open-source Pine runtime (PineTS) | The script itself runs and produces those numbers | **Not done: blocked.** The session's safety classifier refused to execute the third-party package. Needs the owner's permission | Not done | Not done |
+| 3 Matches on TradingView | The script running on TradingView produces the research numbers on TradingView's bars | **Waiting for an export** (steps below) | Cannot be checked from one export (the chart file holds one symbol); check by eye against the brokerage statement | n/a |
+| 4 Does not repaint | A later export reproduces the earlier one for closed bars | Waiting for a second export on a later day | n/a | n/a |
+| 5 Strategy twin agrees | The Strategy Tester's trades equal the research simulator's, trade for trade | n/a | n/a | **Waiting for an export** (steps below) |
 
-What has NOT been shown: that either script has run on a chart. Level 1 is a compile, not an
-execution. Things only a chart can show: runtime errors, how the table and lines look, the
-behaviour of `earnings.future_time`, the lower-timeframe request used on weekly charts, alert
-delivery. Treat the first load as a test.
+What has NOT been shown: that any script has run on a chart. Level 1 is a compile, not an
+execution. Things only a chart can show: runtime errors, how the table, cone and labels look, the
+behaviour of `earnings.future_time` (for the chart symbol and, in the portfolio script, for other
+symbols), the lower-timeframe request used on weekly charts, alert delivery. Treat the first load
+as a test and send a screenshot.
 
 ## Level 1 and 2a: reproduce
 
@@ -23,6 +25,7 @@ delivery. Treat the first load as a test.
 cd swing-lab
 python tools/pine_compile.py pine/sl_risk_desk.pine pine/sl_odds_check.pine
 python tools/parity_check.py self AAPL NVDA GE KO --k 3 --hold 10
+python tools/parity_check.py book AAPL NVDA XOM JPM KO GE --hold 10
 ```
 
 ## Level 3: what to export, and how it is checked
