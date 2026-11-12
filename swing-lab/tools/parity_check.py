@@ -113,6 +113,10 @@ def pine_twin(o, h, l, c, v, *, k: float, hold: int, equity: float, risk_pct: fl
     with np.errstate(divide="ignore", invalid="ignore"):
         y = np.log(c / ta.shift(c, hold)) / (ta.shift(a, hold) / ta.shift(c, hold) * np.sqrt(hold))    # float y = math.log(c / c[i_hold]) / (a[i_hold] / c[i_hold] * math.sqrt(i_hold))
     have = np.isfinite(y)                                            # bool have = not na(y)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        u_ago = ta.shift(a, hold) / ta.shift(c, hold) * np.sqrt(hold)                              # float uAgo = a[i_hold] / c[i_hold] * math.sqrt(i_hold)
+        e05, e25 = ta.shift(c, hold) * np.exp(q05 * u_ago), ta.shift(c, hold) * np.exp(q25 * u_ago)     # float e05 = c[i_hold] * math.exp(Q05 * uAgo) ...
+        e75, e95 = ta.shift(c, hold) * np.exp(q75 * u_ago), ta.shift(c, hold) * np.exp(q95 * u_ago)
     n = np.cumsum(have, axis=0).astype(float)                        # float n = ta.cum(have ? 1.0 : 0.0)
     f90 = have & (y >= q05) & (y <= q95)
     f50 = have & (y >= q25) & (y <= q75)
@@ -145,6 +149,7 @@ def pine_twin(o, h, l, c, v, *, k: float, hold: int, equity: float, risk_pct: fl
         "Band 5pct": px * np.exp(q05 * unit), "Band 25pct": px * np.exp(q25 * unit), "Band 75pct": px * np.exp(q75 * unit), "Band 95pct": px * np.exp(q95 * unit),
         "Record 90 band pct": cov90, "Record 50 band pct": cov50, "Record stop hit pct": cov_stop, "Record windows": np.where(n > 0, n, 0.0),
         "Median dollar volume M": dv / 1e6,
+        "Envelope 5pct": e05, "Envelope 25pct": e25, "Envelope 75pct": e75, "Envelope 95pct": e95,
         "_y": y, "_f90": f90, "_f50": f50, "_fhit": fhit, "_have_s": have_s,
     }
 
@@ -237,6 +242,10 @@ def check_self(symbols, a) -> bool:
         q05, q25, q75, q95 = LB.PRODUCT_BANDS[a.hold]
         ok &= compare("inside the 90% band", tw["_f90"][:, 0].astype(float), np.where(np.isfinite(y_shift), (y_shift >= q05) & (y_shift <= q95), 0.0), 0, rel=False)
         ok &= compare("inside the middle half", tw["_f50"][:, 0].astype(float), np.where(np.isfinite(y_shift), (y_shift >= q25) & (y_shift <= q75), 0.0), 0, rel=False)
+        # the plotted envelope says the same thing as the coverage flag: inside the 90% band <=> envelope low <= close <= envelope high
+        inside_env = (c[:, 0] >= tw["Envelope 5pct"][:, 0]) & (c[:, 0] <= tw["Envelope 95pct"][:, 0])
+        ok &= compare("envelope vs 90% flag", np.where(np.isfinite(y_shift), inside_env, 0.0).astype(float),
+                      np.where(np.isfinite(y_shift), (y_shift >= q05) & (y_shift <= q95), 0.0), 0, rel=False)
         # stop outcome: Pine's flag on bar T is the simulator's outcome for the signal of bar T - hold
         st = research_stops(o[:, 0], h[:, 0], l[:, 0], c[:, 0], v[:, 0], a.k, a.hold)
         st_shift = np.full(T, np.nan)
@@ -276,7 +285,8 @@ def check_tv_csv(path: str, a) -> bool:
     ok = True
     warm = 300            # ATR is a recursive average: if the chart had more history than the export, the two need ~300 bars to agree
     for name, tol in (("Daily ATR14", 1e-6), ("ATR pct of price", 1e-6), ("Stop price", 1e-6), ("Shares", 0.0), ("Position pct of equity", 1e-6),
-                      ("Stop odds pct", 1e-9), ("Band 5pct", 1e-6), ("Band 25pct", 1e-6), ("Band 75pct", 1e-6), ("Band 95pct", 1e-6)):
+                      ("Stop odds pct", 1e-9), ("Band 5pct", 1e-6), ("Band 25pct", 1e-6), ("Band 75pct", 1e-6), ("Band 95pct", 1e-6),
+                      ("Envelope 5pct", 1e-6), ("Envelope 25pct", 1e-6), ("Envelope 75pct", 1e-6), ("Envelope 95pct", 1e-6)):
         if name not in d.columns:
             print(f"    {name:<26s} not in the export (is the indicator on the chart and visible?)")
             ok = False
