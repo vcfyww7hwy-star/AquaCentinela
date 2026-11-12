@@ -49,30 +49,32 @@ def main() -> None:
     tw = PC.book_twin(C[-1], Ll[-1], A[-1], R[-60:], np.array(qty), np.array(entry), np.array(stop), np.array(held), equity=EQUITY, hold=HOLD)
     lo, hlo, hhi, hi = tw["band"]
     th = lambda t, al="right": f'<td class="c" style="text-align:{al}">{t}</td>'
-    rows = [f'<tr><td class="h" colspan="7">SL PORTFOLIO DESK&nbsp;&nbsp;·&nbsp;&nbsp;{tw["n_active"]} positions&nbsp;&nbsp;·&nbsp;&nbsp;hold {HOLD} bars</td></tr>',
+    rows = [f'<tr><td class="h"><b>SL PORTFOLIO DESK</b></td><td class="h" colspan="6">{tw["n_active"]} positions&nbsp;·&nbsp;hold {HOLD} bars</td></tr>',
             "<tr>" + th("Position", "left") + th("% of equity") + th("Result") + th("Day") + th("At risk") + th("Earnings") + th("Status", "center") + "</tr>"]
     for r in tw["rows"]:
         sym, _, sess = BOOK[r["i"]]
-        inside = sess <= HOLD
+        inside = sess <= max(HOLD - r["day"], 0)
         st, sc = ("STOP TOUCHED", STOP) if r["touched"] else ("EARNINGS", WARN) if inside else ("TIME UP", WARN) if r["time_up"] else ("ok", GOOD)
         rc = GOOD if r["r"] >= 0 else STOP
         rows.append(f'<tr><td>{sym}</td><td class="n">{r["pct"]:.1f}%</td><td class="n" style="color:{rc}">{r["r"]:+.2f} R</td>'
                     f'<td class="n" style="color:{WARN if r["time_up"] else FG}">{r["day"]:.0f} / {HOLD}</td><td class="n">{r["at_risk"]:.2f}%</td>'
                     f'<td class="n" style="color:{STOP if inside else FG}">{sess}</td><td class="chip" style="color:{sc};background:{sc}26">{st}</td></tr>'.replace("-", "−"))
     wide = lambda k, v, tag="", c=FG: f'<tr><td class="k">{k}</td><td colspan="5" style="color:{c}">{v}</td><td class="t" style="color:{GOOD if tag else MUTED}">{tag}</td></tr>'
-    rows += ['<tr><td class="s" colspan="7">BOOK</td></tr>',
-             wide("Invested", f'{100 * tw["exposure"]:.1f}% of equity&nbsp;&nbsp;·&nbsp;&nbsp;result so far {tw["result"]:+,.0f}'.replace("-", "−")),
-             wide("Open risk", f'{100 * tw["open_risk"]:.2f}% of equity if every stop fills at its price&nbsp;&nbsp;·&nbsp;&nbsp;limit 6%'),
-             wide("Range, 9 in 10", f'{100 * lo:.1f}% to +{100 * hi:.1f}% of equity&nbsp;&nbsp;·&nbsp;&nbsp;{lo * EQUITY:,.0f} to +{hi * EQUITY:,.0f}'.replace("-", "−"), "C"),
-             wide("Range, 1 in 2", f'{100 * hlo:.1f}% to +{100 * hhi:.1f}% of equity'.replace("-", "−"), "C"),
-             wide("Diversification", f'behaves like {tw["n_eff"]:.1f} independent positions, of {tw["n_active"]}&nbsp;&nbsp;·&nbsp;&nbsp;average correlation {tw["rho_avg"]:.2f}'),
-             '<tr><td class="f" colspan="7">C checked once on 2023-26&nbsp;&nbsp;·&nbsp;&nbsp;daily values, final at the close&nbsp;&nbsp;·&nbsp;&nbsp;hover a cell</td></tr>']
+    pct = lambda x: f"{100 * x:+.1f}%".replace("-", "−")
+    money = lambda x: f"{x:+,.0f}".replace("-", "−")
+    rows += ['<tr class="s"><td><b>BOOK</b></td><td colspan="6"></td></tr>',
+             wide("Invested", f'{100 * tw["exposure"]:.1f}%&nbsp;·&nbsp;result {money(tw["result"])}'),
+             wide("Open risk", f'{100 * tw["open_risk"]:.2f}%&nbsp;·&nbsp;limit 6%'),
+             wide("Range, 9 in 10", f'{pct(lo)} to {pct(hi)}&nbsp;·&nbsp;{money(lo * EQUITY)} to {money(hi * EQUITY)}', "C"),
+             wide("Range, 1 in 2", f'{pct(hlo)} to {pct(hhi)}', "C"),
+             wide("Diversification", f'like {tw["n_eff"]:.1f} independent, of {tw["n_active"]}&nbsp;·&nbsp;corr {tw["rho_avg"]:.2f}'),
+             '<tr><td class="f" colspan="7">C checked once on 2023-26&nbsp;·&nbsp;daily values, final at the close&nbsp;·&nbsp;hover a cell</td></tr>']
     out = f"""<!doctype html><html><head><meta charset="utf-8"><style>
 body{{margin:0;background:{BG};font-family:Inter,'Helvetica Neue',Arial,'DejaVu Sans',sans-serif;}}
 #wrap{{display:inline-block;padding:26px 30px 16px 30px;background:{BG};}}
 table{{border:1px solid rgba(209,212,220,.22);background:rgba(19,23,34,.94);border-collapse:collapse;font-size:13px;color:{FG};}}
 td{{padding:5px 12px;white-space:nowrap;}}
-.h{{background:{ACC};color:#fff;font-weight:600;}} .s{{background:rgba(76,139,245,.12);color:{ACC};}} .k,.c{{color:{MUTED};}}
+.h{{background:{ACC};color:#fff;}} .s td{{background:rgba(76,139,245,.12);color:{ACC};}} .k,.c{{color:{MUTED};}}
 .n{{text-align:right;}} .t{{text-align:center;font-weight:600;}} .f{{color:{MUTED};font-size:11px;}} .chip{{text-align:center;font-weight:600;font-size:12px;}}
 #cap{{color:{MUTED};font-size:11.5px;margin-top:10px;max-width:760px;line-height:1.45;}}
 </style></head><body><div id="wrap"><table>{''.join(rows)}</table>

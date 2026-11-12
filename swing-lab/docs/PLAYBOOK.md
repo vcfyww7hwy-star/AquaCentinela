@@ -1,6 +1,6 @@
 # Playbook: using SL Risk Desk, SL Portfolio Desk and SL Odds Check
 
-12 Nov 2026 (UTC). Evidence tags, the same letters the scripts print: **D** demonstrated out of
+12 Nov 2026 (UTC); SL Risk Desk 2.2, SL Portfolio Desk 1.1. Evidence tags, the same letters the scripts print: **D** demonstrated out of
 sample (frozen before, and passed on, the data set aside for 2023-2026); **C** checked once on
 2023-2026 with constants committed beforehand, outside the pre-registered list; **S** suggestive;
 **U** untested. Sources: `RESEARCH_LOG.md` entries 5-8, `02_research_map.md`.
@@ -37,15 +37,18 @@ Schematics drawn from the script's own arithmetic on real bars (not TradingView 
 
 | # | Element | How to read it | Tag |
 |---|---|---|---|
-| 1 | **The cone** to the right of the last bar | Where the close lands at the end of the holding period. Solid outer lines: 9 closes in 10 fall between them. Dotted inner lines: 1 close in 2. Each line carries its price; the outer ones also their distance in R. On a daily chart the cone runs h bars ahead; on other timeframes it is a block of levels | D |
-| 2 | **The red dashed line** | The stop: k ATR below the last price before the trade, your own stop once you hold | arithmetic |
-| 3 | **The amber dashed line** inside the cone | The next earnings report, shown when it falls inside the holding period | date from TradingView |
+| 1 | **The cone** to the right of the last bar | Where the close lands at the end of the holding period. Solid outer lines: 9 closes in 10 fall between them. Dotted inner lines: 1 close in 2. The four prices are printed at the cone's two corners (95% and 75% above, 25% and 5% below). On a daily chart the cone runs h bars ahead; on other timeframes it is a block of levels | D |
+| 2 | **The red dashed line** | The stop: k ATR below the last price before the trade; once you hold, your stop as it stands now | arithmetic |
+| 3 | **The amber dashed line** inside the cone | The next earnings report, when it falls within the next h sessions | date from TradingView |
 | 4 | **The table** | The same things in numbers, in sections: PLAN (or POSITION), RANGE, EVENTS. Hover a row for its meaning. The letter at the right of a row is its evidence tag | - |
-| 5 | **Entry line, shaded bars, "day h"** (position mode) | The price you paid, the bars you have held, and the bar on which the holding period ends | arithmetic |
+| 5 | **Entry line, shaded bars, "day h"** (position mode) | The price you paid, the bars you have held, and the dotted vertical line on the bar where the holding period ends | arithmetic |
 | 6 | **The envelope** (off by default) | The 90% band drawn h bars ago, plotted at the bar it was aiming at; a dot marks a close outside it, about 1 bar in 10. A report card for the bands, not a signal. It widens the price scale | measurement |
 
 If the cone is cut off at the right edge, drag the chart to the left or raise Settings > Canvas >
-Margins > Right margin to about 25 bars.
+Margins > Right margin to about 25 bars. The script reserves room for the cone and the stop on the
+price scale, so the candles look a little compressed while the last bar is on screen. On a phone
+use Table = Compact and Text size = Tiny; the row explanations appear on hover, which needs a
+pointer.
 
 ### The table, row by row
 
@@ -53,19 +56,21 @@ Margins > Right margin to about 25 bars.
 |---|---|---|
 | **Buy** | Shares = risk budget / stop distance, capped by the largest position; then its value and its share of equity. Every position risks the same money whatever the stock | arithmetic |
 | **Stop** | The stop price if you were filled at the last price, and the distance to keep below your actual fill | arithmetic |
-| **At risk** | What the trade loses if the stop fills at its price. About 15% of stops fill below it and about 1 trade in 100 loses more than 1.5 times this | D |
-| **Stop hit by noise** | How often a stop at this distance is hit inside the holding period by a stock bought for no reason at all | D at 1, 1.5, 2, 2.5, 3, 4 ATR (within 1.7 points on 2023-26); a straight line in between |
-| **9 in 10** | The outer lines of the cone, as prices and in R (against the planned stop before the trade, against your entry and stop once you hold) | D (89.6-89.9% on 2023-26) |
+| **At risk** | What the trade loses if the stop fills at its price. About 15% of stops fill below it; with a 2 ATR stop held 10 bars about 1 trade in 100 loses more than 1.5 times this | D for that case |
+| **Stop hit by noise** | How often a stop at this distance is hit inside the holding period by a stock bought for no reason at all | D at 1, 1.5, 2, 2.5, 3, 4 ATR (within 1.7 points on 2023-26); a straight line in between, shown without a tag |
+| **9 in 10** | The outer lines of the cone, as prices and in R (against the planned stop before the trade, against your entry and first stop once you hold) | D (89.6-89.9% on 2023-26) |
 | **1 in 2** | The dotted lines of the cone | D (48.8-50.0%) |
-| **This stock** | The same three figures measured on this symbol's own history: how often its 90% band held, its middle half, and how often this stop was hit. Below 85% on the first, the stock jumps more than most | measurement |
-| **Earnings** | Sessions to the next report, and whether it falls inside the holding period | date from TradingView |
+| **This stock** | The same three figures measured on this symbol's own history: how often its 90% band held, its middle half, and how often this stop was hit. With 1,000 windows or more, below 85% on the first suggests the stock jumps more than most (a rule of thumb, not tested) | measurement |
+| **Earnings** | Sessions to the next report, and whether it falls inside the holding period (for an open position: before the planned exit). "last date has passed" means the date read at load is over: reload | date from TradingView |
 | **Earnings night** | About 1 report in 10 opens more than 2 ATR against the holder (1 in 5 beyond 1 ATR, 1 in 20 beyond 3 ATR; by year 15-27%, 5-15%, 3-8%) | the multiple over an ordinary night (at least 20 times) is D; the exact odds are U |
 | **Index** | SPY above or below its 200-day average. Below, the index has been about twice as volatile. It has NOT meant lower returns, and on 2023-26 it did not mean more losing stocks | S |
-| **Universe** | "inside": a stock at $5 or more with $20M or more traded a day (60-day median). Outside it the odds were not tested | - |
-| **Now**, **Entry / stop**, **Result** (position mode) | R = (price - entry) / (entry - stop); day n of h, day 1 being the entry day; money so far and at the stop | arithmetic |
+| **Universe** | "inside": a US-listed stock at $5 or more with $20M or more traded a day (60-day median). Outside it the odds were not tested | - |
+| **Now**, **Entry / stop**, **Result** (position mode) | R = (price - entry) / (entry - first stop); day n of h, day 1 being the entry day; money so far and at the stop | arithmetic |
 
-All values are daily values: on a 1h or 4h chart those of the last completed day, on a weekly
-chart those of the last daily bar.
+All values are daily values. On a 1h or 4h chart they are those of the day before the bar's own
+session, so after the close an intraday chart is one day behind the daily chart: **make the plan,
+and create a position's alert, on the daily chart.** On a weekly chart they are those of the last
+daily bar.
 
 ### Inputs
 
@@ -76,7 +81,7 @@ chart those of the last daily bar.
 | | Stop distance, in daily ATR(14) | 3 | 1 to 4. See "Choosing the stop" |
 | | Holding period, daily bars | 10 | 5, 10 or 20 |
 | | Largest position, % of equity | 20 | A cap for quiet stocks |
-| 2 Open position | I hold this stock; entry price; stop price; shares held; entry date | off | Fill in after you buy |
+| 2 Open position | I hold this stock; entry price; first stop price; stop now, if you moved it; shares held; entry date | off | Fill in after you buy. The first stop defines 1 R for the whole trade: do not change it when you move the stop, type the new level in "Stop now". Entry date: change the date, leave the time as it is; that day is day 1 |
 | 3 Alerts | Send the plan at each daily close | off | On for a stock you will buy at the next open |
 | 4 Look | Cone, envelope, stop level; table Full / Compact / Off; position; text size; colours | cone and stop on, envelope off, Full, bottom left | Compact once you know the table |
 | 5 Market | Index reference | AMEX:SPY | Leave |
@@ -96,14 +101,17 @@ chart those of the last daily bar.
 
 **After the fill**
 
-6. Settings > Open position: tick "I hold this stock", type the entry price, the stop price
-   (fill minus the distance), the shares and the date. The table switches to POSITION.
+6. Settings > Open position: tick "I hold this stock", type the entry price, the first stop
+   (fill minus the distance), the shares and the date. The table switches to POSITION. If you
+   move the stop later, type the new level in "Stop now" and leave the first stop alone.
 7. Delete the old alert and create a new one (an alert keeps the inputs it was created with).
 8. Add the position to SL Portfolio Desk.
 
 **While holding** (alerts do the watching)
 
-9. "Traded at or below your stop": check that the broker's stop executed.
+9. "Traded at or below your stop": check that the broker's stop executed. The message is sent
+   when the price first reaches the stop (on an intraday chart, again once on each later day it
+   is still there).
 10. "Earnings inside the holding period": decide per "Earnings".
 11. "Holding period complete": exit, or decide deliberately to start a new period, with a new
     stop and a new day 1.
@@ -132,9 +140,9 @@ same money at risk. The cost of a wide stop is a smaller position, not a bigger 
 
 ## What the cone is for
 
-- **A target check.** With a 3-ATR stop and 10 bars, the 95% line is at +1.16 R. A plan that needs
-  +2 R in two weeks needs a 1-in-100 outcome (U). Either hold longer (20 bars: +1.65 R at the 95%
-  line) or accept that the target is a hope.
+- **A target check.** With a 3-ATR stop and 10 bars, the 95% line is at about +1.2 R. A plan that
+  needs +2 R in two weeks needs a 1-in-100 outcome (U). Either hold longer (20 bars: about +1.7 R
+  at the 95% line) or accept that the target is a hope.
 - **A sanity check on news.** A close outside the 90% band happens 1 time in 10 by chance. Outside
   it, something happened; inside it, probably nothing did.
 - It is nearly symmetric around a small positive drift and says nothing about direction.
@@ -167,30 +175,40 @@ context only) and it has cost return in every bull decade.
 
 Schematic: `img/portfolio_desk.png`.
 
-Put it on one daily chart. Settings > Inputs: for each position the symbol, then shares, entry and
-stop on one line, then the entry date. A row is on when its shares are above 0.
+Put it on the daily chart of a US stock or ETF, for example SPY: the chart supplies the trading
+days (the script refuses other charts). Settings > Inputs, for each position: the symbol; then
+four numbers on one line, shares, entry, first stop, and the stop as it stands now if you moved it
+(0 if not); then the entry date (change the date, leave the time). A row is on when its shares
+are above 0.
+
+Check once, on the first load: put a stock with a known report date in Position 1 and compare the
+Earnings column with SL Risk Desk on that stock's own chart. Reading another symbol's earnings
+date this way is not documented by TradingView. If the column shows a dash where the stock's own
+chart shows a date, rely on SL Risk Desk for earnings and say so, and the column will be removed.
 
 | Column | Meaning |
 |---|---|
 | % of equity | Shares x last close / account equity |
-| Result | R = (close - entry) / (entry - stop) |
+| Result | R = (close - entry) / (entry - first stop) |
 | Day | Daily bars since the entry date, entry day = 1, of the holding period |
-| At risk | What the position still loses if its stop fills at its price, as % of equity |
-| Earnings | Sessions to the next report; red when inside the holding period |
-| Status | STOP TOUCHED (today's low reached the stop), EARNINGS, TIME UP, or ok |
+| At risk | What the position gives up from the last close if its stop (as it stands now) fills at its price, as % of equity. Profit not yet taken counts |
+| Earnings | Sessions to the next report; red when it falls before the planned exit; "passed" when the date read at load is over (reload) |
+| Status | STOP TOUCHED (today's low reached the stop), CHECK INPUTS (entry or first stop missing, or stop not below entry), EARNINGS, TIME UP, NO DATA (not counted in the book), or ok |
 
 | Book row | Meaning | Tag |
 |---|---|---|
 | Invested | Sum of the positions over equity; above 100% the book is leveraged | arithmetic |
-| Open risk | What the book loses from here if every stop fills at its price; the alert limit is an input (default 6%) | arithmetic; stops gap (D) |
+| Open risk | What the book loses from here if every stop fills at its price; the alert limit is an input (default 6%). A position without a stop is not counted and is flagged | arithmetic; stops gap (D) |
 | Range, 9 in 10 and 1 in 2 | How far the whole book usually moves over the holding period if nothing is sold, from each position's ATR and the correlations of the last 60 days | C: on 2023-26 the bands held 88.9-90.2% and 45.9-49.8% for books of 2 to 10 positions. The band does not capture the crash tail: in 2018-22 the 5% line should have been about 15% lower |
-| Diversification | The number of independent positions the book behaves like, and the average correlation. Ten positions that behave like three are three bets | arithmetic |
+| Diversification | The number of independent positions the book behaves like, and the average correlation of the last 60 daily returns. With the usual correlation of 0.3, five stocks behave like about 2.3 and ten like about 2.7: that is normal. Amber above 0.5 | arithmetic |
 
 How to use the numbers:
 
 - **Open risk** is the first limit. With 0.75% a trade, eight fresh positions are 6%.
-- **Diversification** is the second. If the book "behaves like" fewer than half its positions, the
-  next trade in the same group adds risk without adding a bet: skip it or halve it.
+- **Diversification** is the second. Stocks move together, so a book of ten ordinary stocks is
+  two or three independent bets, not ten: size the whole book with that in mind. When the average
+  correlation is above 0.5 the book is close to one bet: the next trade in the same group adds
+  risk without adding a bet, so skip it or halve it.
 - **Range** tells you what a normal fortnight looks like for the book, so that a normal loss is
   not mistaken for a problem.
 
@@ -198,7 +216,7 @@ How to use the numbers:
 
 | Alert | Create it on | Covers |
 |---|---|---|
-| One for the book | The chart with SL Portfolio Desk > Alert > Condition: SL Portfolio Desk > **Any alert() function call** | Every position: stop touched, holding period complete, earnings entering the window; and the book's open risk crossing your limit. One message per day at most |
+| One for the book | The chart with SL Portfolio Desk > Alert > Condition: SL Portfolio Desk > **Any alert() function call** | Every position: stop touched, holding period complete, a report coming before the planned exit; and the book's open risk crossing your limit. Each is sent once, when it begins; one message per day at most |
 | One per candidate | The stock's chart with SL Risk Desk, "Send the plan" on > **Any alert() function call** | The order ticket at each daily close, earnings entering the window, the index changing state |
 
 Options for both: open-ended expiration; notifications to the app and e-mail. Messages are sent
@@ -206,7 +224,8 @@ once, at the close of the bar.
 
 An alert is a snapshot: it keeps the inputs it was created with. After you change the positions,
 **delete the alert and create it again**. The earnings date is read when the alert is created;
-after that report has passed, recreate the alert.
+after that report has passed, recreate the alert. An alert created while the price is already at
+or below a stop stays silent about that stop until the price recovers and falls through again.
 
 Limits on Premium (TradingView's pricing page, read 10-11 Nov 2026): 400 technical alerts; each
 alert above counts as one.

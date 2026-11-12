@@ -167,19 +167,22 @@ def pine_twin(o, h, l, c, v, *, k: float, hold: int, equity: float, risk_pct: fl
     }
 
 
-def book_twin(closes: np.ndarray, lows: np.ndarray, atrs: np.ndarray, rets: np.ndarray, qty, entry, stop, held, *, equity: float, hold: int, heat_max: float = 6.0) -> dict:
+def book_twin(closes: np.ndarray, lows: np.ndarray, atrs: np.ndarray, rets: np.ndarray, qty, entry, stop, held, *, equity: float, hold: int, heat_max: float = 6.0,
+              stop_now=None) -> dict:
     """sl_portfolio_desk.pine on its last bar, statement by statement.
     closes, lows, atrs: [N] values of the last bar; rets: [60, N] the last 60 daily log returns (rows oldest first);
-    qty, entry, stop, held: [N] inputs and day counts."""
+    qty, entry, stop (the FIRST stop, which defines 1 R), held: [N] inputs and day counts; stop_now: [N] or None (0 = not moved)."""
+    stop = np.asarray(stop, dtype=float)
+    stpn = stop if stop_now is None else np.where(np.asarray(stop_now, dtype=float) > 0, stop_now, stop)      # array<float> STPN = ... yN > 0 ? yN : xN
     import json
     q05, q25, q75, q95 = json.loads(BOOK_CONSTANTS.read_text())["bands"][str(hold)]
     N = len(closes)
     sqrt_h = np.sqrt(hold)                                                           # float sqrtH = math.sqrt(i_hold)
-    active = [bool(qty[i] > 0 and np.isfinite(closes[i]) and np.isfinite(atrs[i])) for i in range(N)]      # f_active(i)
+    active = [bool(qty[i] > 0 and np.isfinite(closes[i])) for i in range(N)]                             # f_active(i)
     exposure = sum(qty[i] * closes[i] / equity for i in range(N) if active[i])       # exposure += QTY.get(i) * CLS.get(i) / i_equity
-    open_risk = sum(qty[i] * max(closes[i] - stop[i], 0.0) / equity for i in range(N) if active[i] and stop[i] > 0)   # openRisk += ...
+    open_risk = sum(qty[i] * max(closes[i] - stpn[i], 0.0) / equity for i in range(N) if active[i] and stpn[i] > 0)   # openRisk += ... (against the stop as it stands now)
     result = sum(qty[i] * (closes[i] - entry[i]) for i in range(N) if active[i] and entry[i] > 0)
-    wu = [qty[i] * atrs[i] * sqrt_h / equity if active[i] else 0.0 for i in range(N)]                      # WU.set(i, QTY.get(i) * ATR.get(i) * sqrtH / i_equity)
+    wu = [qty[i] * (atrs[i] if np.isfinite(atrs[i]) else 0.0) * sqrt_h / equity if active[i] else 0.0 for i in range(N)]   # WU.set(i, QTY.get(i) * nz(ATR.get(i)) * sqrtH / i_equity)
 
     def corr(i, j):                                                                  # f_corr(i, j)
         x, y = rets[:, i], rets[:, j]
@@ -207,10 +210,10 @@ def book_twin(closes: np.ndarray, lows: np.ndarray, atrs: np.ndarray, rets: np.n
         if not active[i]:
             continue
         risk = entry[i] - stop[i]
-        r_now = (closes[i] - entry[i]) / risk if risk > 0 and stop[i] > 0 else np.nan      # f_r(i)
+        r_now = (closes[i] - entry[i]) / risk if risk > 0 and stop[i] > 0 else np.nan      # f_r(i): against the first stop
         rows.append({"i": i, "pct": 100.0 * qty[i] * closes[i] / equity, "r": r_now, "day": held[i],
-                     "at_risk": 100.0 * qty[i] * max(closes[i] - stop[i], 0.0) / equity if stop[i] > 0 else np.nan,
-                     "time_up": held[i] >= hold, "touched": held[i] >= 1 and stop[i] > 0 and lows[i] <= stop[i]})
+                     "at_risk": 100.0 * qty[i] * max(closes[i] - stpn[i], 0.0) / equity if stpn[i] > 0 else np.nan,
+                     "time_up": held[i] >= hold, "touched": held[i] >= 1 and stpn[i] > 0 and lows[i] <= stpn[i]})
     return {"rows": rows, "n_active": sum(active), "exposure": exposure, "open_risk": open_risk, "result": result, "s_p": s_p,
             "band": (s_p * q05, s_p * q25, s_p * q75, s_p * q95), "n_eff": sum(wu) ** 2 / var_p if var_p > 0 else np.nan,
             "rho_avg": rho_sum / pairs if pairs else np.nan, "hot": 100.0 * open_risk > heat_max, "wu": wu}

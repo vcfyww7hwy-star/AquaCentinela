@@ -360,7 +360,8 @@ if barstate.islast
             int xt = entryBar + i_hold - 1
             if xt >= bar_index - 400 and xt <= bar_index + 400
                 gLines.push(line.new(xt, stopLive, xt, math.max(nz(hi95, i_entryPx), i_entryPx), color = color.new(chart.fg_color, 55), style = line.style_dotted))
-                gLabels.push(label.new(xt, stopLive, "day " + str.tostring(i_hold), style = label.style_label_up, color = color.new(chart.fg_color, 100),
+                // the word sits where the day line crosses the entry line, clear of the stop label and of the cone's corner tags
+                gLabels.push(label.new(xt, i_entryPx, "day " + str.tostring(i_hold), style = label.style_label_lower_left, color = color.new(chart.fg_color, 100),
                      textcolor = color.new(chart.fg_color, 30), size = size.small))
 
 // ─────────────────────────────────────────────────────────────── table (last bar)

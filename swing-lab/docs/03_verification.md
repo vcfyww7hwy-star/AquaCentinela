@@ -2,7 +2,7 @@
 
 Status on 12 Nov 2026 (UTC). The ladder is the one fixed in `00_protocol.md`, section 7.
 
-| Level | What it proves | `sl_risk_desk.pine` (v2.1) | `sl_portfolio_desk.pine` | `sl_odds_check.pine` |
+| Level | What it proves | `sl_risk_desk.pine` (v2.2) | `sl_portfolio_desk.pine` (v1.1) | `sl_odds_check.pine` |
 |---|---|---|---|---|
 | 1 Compiles under TradingView's compiler | Syntax and types | **Done**: 0 errors, 0 warnings | **Done**: 0 / 0 | **Done**: 0 / 0 |
 | 1b Constants | The numbers typed into the script are the ones that were tested | **Done**: identical to the lockbox tables | **Done**: identical to the constants committed before their check | **Done** |
@@ -18,6 +18,40 @@ execution. Things only a chart can show: runtime errors, how the table, cone and
 behaviour of `earnings.future_time` (for the chart symbol and, in the portfolio script, for other
 symbols), the lower-timeframe request used on weekly charts, alert delivery. Treat the first load
 as a test and send a screenshot.
+
+## Independent review (level 2c), 12 Nov 2026
+
+Four reviewers read SL Risk Desk 2.1 and SL Portfolio Desk 1.0 against TradingView's
+documentation, each with one lens: runtime errors and limits; data requests, repainting, alerts
+and earnings; rendering on a chart; logic against the research files. A skeptic then tried to
+refute every finding of the first two lenses. The skeptics for the rendering and logic lenses did
+not run (the account's usage limit ended the workflow), so those findings were judged by the
+author alone. In all: 52 findings, 19 verdicts (16 confirmed, 3 left open, none refuted). The raw
+results are in `_raw/pine_review_2026-11-12.json`.
+
+| What was found | Severity | Status |
+|---|---|---|
+| Portfolio Desk merged the cells of one persistent table again on every update, which the reference manual documents as a runtime error: the table and the book's only alert would have stopped at the first live tick | blocker | Fixed: a fresh table on every update |
+| Risk Desk drew a held position's lines up to 400 bars back on realtime bars without reserving the `time` buffer: "historical offset beyond the buffer" error | major | Fixed: `max_bars_back(time, 500)` |
+| Entry date compared as an instant with the bar's opening time: on a chart in an American time zone the entry day was dropped and every day count was one short (both scripts) | major | Fixed: compared by calendar day (`time_tradingday`), default at noon UTC |
+| Weekly and monthly charts measured days to earnings from the end of the week: a report due this week read "no date on file" | major | Fixed: measured from now |
+| "Earnings inside the holding period" was tested against a full new period, not the days a position has left (both scripts) | major | Fixed |
+| A stop raised to or above the entry switched position mode off (Risk Desk) or read as a set-up error (Portfolio Desk), and silently changed 1 R | major | Fixed: a first stop, which defines 1 R, and an optional "stop now" |
+| Cone tags crossed by the cone's own lines; the earnings label on top of the 95% tag; the price scale making no room for the cone or the stop | major | Fixed: tags at the cone's two corners, earnings marker placed in bars at mid-height, two invisible scale anchors |
+| Long texts in merged cells, which take their width from their neighbours and not from their text | major | Fixed: no merged cells in the Risk Desk; short texts in the Portfolio Desk |
+| Stop message repeated at every bar; stale earnings date read as "no date"; positions without data or without a stop vanishing from the book; day count one short on intraday charts; "inside" universe for non-US stocks; NaN with fewer than 15 daily bars; colours unreadable on a light chart; inputs flooding the status line; the diversification warning firing for every ordinary book | minor | Fixed |
+| Tag D shown for stop distances that were never tested; "1 trade in 100" stated for every stop | cosmetic | Fixed |
+| On an intraday chart, after the close, daily values are one day behind the daily chart | minor | Kept (the documented non-repainting form); wording corrected; the guide says to plan on the daily chart |
+| `earnings.future_time` read for ANOTHER symbol through `request.security()`: no documentation either way | open | Cannot be settled without a chart. First-load check written into the playbook; the column fails visibly (a dash) and is to be removed if it does not work |
+| History of a variable first read on a realtime bar inside a lazy `and` | open | Hardened: the previous-bar states are now read on every bar |
+
+Not adopted: making the Data Window plots non-editable (it is not documented that such plots are
+still written to the chart export, which the parity check needs).
+
+Still unverified, and only a chart can show them: whether a second identical merge is in fact an
+error (moot after the fix); the exact default size of the `time` buffer; whether fully transparent
+plots move the price scale (if not, the scale anchors do nothing); the positions of labels;
+`time_tradingday` on the bars of the entry day; everything listed under "What has NOT been shown".
 
 ## Level 1 and 2a: reproduce
 

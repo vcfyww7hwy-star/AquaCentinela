@@ -577,3 +577,38 @@ scripts tag it C.
   the same s_p as the formula the band was calibrated with.
 - A schematic preview of both, drawn from the scripts' own arithmetic on real bars, is in
   `docs/img/` (generator in `tools/preview/`). It is not a TradingView screenshot.
+
+---
+
+## 2026-11-12 (UTC) - Session 2, entry 9: independent review of the two indicators
+
+Neither indicator can be run here, so both were given to four reviewers with different lenses and
+to skeptics who tried to refute what the reviewers found (`docs/03_verification.md`, "Independent
+review"). The workflow ended early when the account's usage limit was reached: six of eight agents
+finished; the findings on rendering and on logic were not challenged by a skeptic and were judged
+by the author.
+
+What it changed, in order of consequence:
+
+1. **A blocker in SL Portfolio Desk.** The table was created once and its cells merged again on
+   every update. The reference manual documents a second merge as a runtime error. With the market
+   closed the script would have loaded cleanly; at the first live tick the table and the book's
+   only alert would have stopped. A compile cannot see this, and neither could the transliteration
+   test, which checks arithmetic.
+2. **Four defects that would have given wrong statements without any error:** the entry day
+   dropped on charts in an American time zone (every day count one short, time-up a day late);
+   "no date on file" for a report due this week on a weekly chart; "earnings inside the holding
+   period" for a report after the planned exit; and a raised stop reading as a set-up error while
+   silently changing 1 R.
+3. **One defect that would have stopped the Risk Desk in position mode** on realtime bars (lines
+   anchored far back without the `time` buffer reserved).
+4. About thirty smaller corrections of rendering and wording.
+
+Left open because only a chart can answer: whether `earnings.future_time` can be read for another
+symbol through `request.security()`. The portfolio script fails visibly if it cannot, and the
+playbook carries the check.
+
+Lesson for the verification ladder: between "compiles" and "runs on a chart" there is room for a
+documented-behaviour review, and it found a blocker that both automatic checks had passed.
+Scripts after the review: SL Risk Desk 2.2, SL Portfolio Desk 1.1; both compile with 0 errors and
+0 warnings; parity checks pass.
