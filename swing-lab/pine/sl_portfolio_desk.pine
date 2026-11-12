@@ -1,0 +1,347 @@
+//@version=6
+// SL Portfolio Desk (swing-lab)
+//
+// One table and one alert for the whole book: up to ten open positions, each with its result in R, its day
+// count, the money still at risk to its stop and its next earnings date; and for the book as a whole the
+// exposure, the open risk if every stop were filled, how far the book usually moves over the holding period
+// given how the positions move together, and how many independent positions it really behaves like.
+// It gives no buy or sell signal. Use it on any DAILY chart (for example SPY): the chart's own symbol does
+// not matter, the positions come from the inputs.
+//
+// Evidence tags:
+//   D  demonstrated out of sample on data set aside for 2023-2026 (swing-lab/docs/RESEARCH_LOG.md, entry 7)
+//   C  checked once on 2023-2026 with constants committed beforehand, outside the pre-registered list (entry 8)
+//   U  untested
+//
+// Values are daily and final at the close. One alert ("Any alert() function call") covers every position.
+indicator("SL Portfolio Desk", shorttitle = "SL Portfolio", overlay = true)
+
+// ─────────────────────────────────────────────────────────────── inputs
+string GB = "Book"
+float  i_equity  = input.float(100000.0, "Account equity", minval = 0.0, step = 1000.0, group = GB, tooltip = "In the currency of the positions.")
+int    i_hold    = input.int(10, "Holding period, daily bars", options = [5, 10, 20], group = GB)
+float  i_heatMax = input.float(6.0, "Alert when the open risk to the stops exceeds, % of equity", minval = 0.5, step = 0.5, group = GB,
+     tooltip = "Open risk = what the book loses from here if every stop fills at its price. Stops can fill lower: about 15% do.")
+
+string GL = "Look"
+string i_tablePos = input.string("Top right", "Table position", options = ["Top right", "Bottom right", "Top left", "Bottom left"], group = GL)
+string i_textSize = input.string("Small", "Text size", options = ["Tiny", "Small", "Normal"], group = GL)
+color  i_cAccent  = input.color(#4C8BF5, "Accent", group = GL)
+color  i_cStop    = input.color(#E5484D, "Stop", group = GL)
+color  i_cGood    = input.color(#2EBD85, "Good", group = GL)
+color  i_cWarn    = input.color(#F0A030, "Warning", group = GL)
+
+string TIP_SYM = "Leave the shares at 0 to switch a row off."
+int    T0      = timestamp("2026-01-02T00:00:00")
+
+string G1 = "Position 1"
+string s1 = input.symbol("", "Symbol", group = G1, tooltip = TIP_SYM)
+float  q1 = input.float(0.0, "Shares  ·  entry  ·  stop", minval = 0.0, group = G1, inline = "a1")
+float  p1 = input.float(0.0, "", minval = 0.0, group = G1, inline = "a1")
+float  x1 = input.float(0.0, "", minval = 0.0, group = G1, inline = "a1")
+int    t1 = input.time(T0, "Entry date", group = G1)
+string G2 = "Position 2"
+string s2 = input.symbol("", "Symbol", group = G2, tooltip = TIP_SYM)
+float  q2 = input.float(0.0, "Shares  ·  entry  ·  stop", minval = 0.0, group = G2, inline = "a2")
+float  p2 = input.float(0.0, "", minval = 0.0, group = G2, inline = "a2")
+float  x2 = input.float(0.0, "", minval = 0.0, group = G2, inline = "a2")
+int    t2 = input.time(T0, "Entry date", group = G2)
+string G3 = "Position 3"
+string s3 = input.symbol("", "Symbol", group = G3, tooltip = TIP_SYM)
+float  q3 = input.float(0.0, "Shares  ·  entry  ·  stop", minval = 0.0, group = G3, inline = "a3")
+float  p3 = input.float(0.0, "", minval = 0.0, group = G3, inline = "a3")
+float  x3 = input.float(0.0, "", minval = 0.0, group = G3, inline = "a3")
+int    t3 = input.time(T0, "Entry date", group = G3)
+string G4 = "Position 4"
+string s4 = input.symbol("", "Symbol", group = G4, tooltip = TIP_SYM)
+float  q4 = input.float(0.0, "Shares  ·  entry  ·  stop", minval = 0.0, group = G4, inline = "a4")
+float  p4 = input.float(0.0, "", minval = 0.0, group = G4, inline = "a4")
+float  x4 = input.float(0.0, "", minval = 0.0, group = G4, inline = "a4")
+int    t4 = input.time(T0, "Entry date", group = G4)
+string G5 = "Position 5"
+string s5 = input.symbol("", "Symbol", group = G5, tooltip = TIP_SYM)
+float  q5 = input.float(0.0, "Shares  ·  entry  ·  stop", minval = 0.0, group = G5, inline = "a5")
+float  p5 = input.float(0.0, "", minval = 0.0, group = G5, inline = "a5")
+float  x5 = input.float(0.0, "", minval = 0.0, group = G5, inline = "a5")
+int    t5 = input.time(T0, "Entry date", group = G5)
+string G6 = "Position 6"
+string s6 = input.symbol("", "Symbol", group = G6, tooltip = TIP_SYM)
+float  q6 = input.float(0.0, "Shares  ·  entry  ·  stop", minval = 0.0, group = G6, inline = "a6")
+float  p6 = input.float(0.0, "", minval = 0.0, group = G6, inline = "a6")
+float  x6 = input.float(0.0, "", minval = 0.0, group = G6, inline = "a6")
+int    t6 = input.time(T0, "Entry date", group = G6)
+string G7 = "Position 7"
+string s7 = input.symbol("", "Symbol", group = G7, tooltip = TIP_SYM)
+float  q7 = input.float(0.0, "Shares  ·  entry  ·  stop", minval = 0.0, group = G7, inline = "a7")
+float  p7 = input.float(0.0, "", minval = 0.0, group = G7, inline = "a7")
+float  x7 = input.float(0.0, "", minval = 0.0, group = G7, inline = "a7")
+int    t7 = input.time(T0, "Entry date", group = G7)
+string G8 = "Position 8"
+string s8 = input.symbol("", "Symbol", group = G8, tooltip = TIP_SYM)
+float  q8 = input.float(0.0, "Shares  ·  entry  ·  stop", minval = 0.0, group = G8, inline = "a8")
+float  p8 = input.float(0.0, "", minval = 0.0, group = G8, inline = "a8")
+float  x8 = input.float(0.0, "", minval = 0.0, group = G8, inline = "a8")
+int    t8 = input.time(T0, "Entry date", group = G8)
+string G9 = "Position 9"
+string s9 = input.symbol("", "Symbol", group = G9, tooltip = TIP_SYM)
+float  q9 = input.float(0.0, "Shares  ·  entry  ·  stop", minval = 0.0, group = G9, inline = "a9")
+float  p9 = input.float(0.0, "", minval = 0.0, group = G9, inline = "a9")
+float  x9 = input.float(0.0, "", minval = 0.0, group = G9, inline = "a9")
+int    t9 = input.time(T0, "Entry date", group = G9)
+string G10 = "Position 10"
+string s10 = input.symbol("", "Symbol", group = G10, tooltip = TIP_SYM)
+float  q10 = input.float(0.0, "Shares  ·  entry  ·  stop", minval = 0.0, group = G10, inline = "a10")
+float  p10 = input.float(0.0, "", minval = 0.0, group = G10, inline = "a10")
+float  x10 = input.float(0.0, "", minval = 0.0, group = G10, inline = "a10")
+int    t10 = input.time(T0, "Entry date", group = G10)
+
+if not (timeframe.isdaily and timeframe.multiplier == 1)
+    runtime.error("SL Portfolio Desk: use a daily chart (any symbol, for example SPY).")
+
+// ─────────────────────────────────────────────────────────────── constants [C]
+// Quantiles (5%, 25%, 75%, 95%) of the book's return over h daily bars divided by its predicted scale s_p
+// (research/confirm/portfolio_band_constants.json; calibrated on 2011-2022, checked once on 2023-2026).
+float PQ05 = i_hold == 5 ? -1.27 : i_hold == 10 ? -1.25 : -1.23
+float PQ25 = i_hold == 5 ? -0.39 : i_hold == 10 ? -0.36 : -0.33
+float PQ75 = i_hold == 5 ?  0.52 : i_hold == 10 ?  0.53 :  0.55
+float PQ95 = i_hold == 5 ?  1.14 : i_hold == 10 ?  1.13 :  1.14
+int   CORR_WINDOW = 60
+int   SLOTS       = 10
+
+// ─────────────────────────────────────────────────────────────── daily data of each position
+f_pos(int entryTime) =>
+    float a    = ta.atr(14)
+    float r    = math.log(close / close[1])
+    float held = ta.cum(time >= entryTime ? 1.0 : 0.0)
+    [close, low, a, r, held, earnings.future_time]
+
+[c1, l1, a1, r1, h1, e1]       = request.security(s1,  "1D", f_pos(t1),  ignore_invalid_symbol = true)
+[c2, l2, a2, r2, h2, e2]       = request.security(s2,  "1D", f_pos(t2),  ignore_invalid_symbol = true)
+[c3, l3, a3, r3, h3, e3]       = request.security(s3,  "1D", f_pos(t3),  ignore_invalid_symbol = true)
+[c4, l4, a4, r4, h4, e4]       = request.security(s4,  "1D", f_pos(t4),  ignore_invalid_symbol = true)
+[c5, l5, a5, r5, h5, e5]       = request.security(s5,  "1D", f_pos(t5),  ignore_invalid_symbol = true)
+[c6, l6, a6, r6, h6, e6]       = request.security(s6,  "1D", f_pos(t6),  ignore_invalid_symbol = true)
+[c7, l7, a7, r7, h7, e7]       = request.security(s7,  "1D", f_pos(t7),  ignore_invalid_symbol = true)
+[c8, l8, a8, r8, h8, e8]       = request.security(s8,  "1D", f_pos(t8),  ignore_invalid_symbol = true)
+[c9, l9, a9, r9, h9, e9]       = request.security(s9,  "1D", f_pos(t9),  ignore_invalid_symbol = true)
+[c10, l10, a10, r10, h10, e10] = request.security(s10, "1D", f_pos(t10), ignore_invalid_symbol = true)
+
+array<string> SYM = array.from(s1, s2, s3, s4, s5, s6, s7, s8, s9, s10)
+array<float>  QTY = array.from(q1, q2, q3, q4, q5, q6, q7, q8, q9, q10)
+array<float>  ENT = array.from(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10)
+array<float>  STP = array.from(x1, x2, x3, x4, x5, x6, x7, x8, x9, x10)
+array<float>  CLS = array.from(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10)
+array<float>  LOW = array.from(l1, l2, l3, l4, l5, l6, l7, l8, l9, l10)
+array<float>  ATR = array.from(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10)
+array<float>  HLD = array.from(h1, h2, h3, h4, h5, h6, h7, h8, h9, h10)
+array<int>    ERN = array.from(e1, e2, e3, e4, e5, e6, e7, e8, e9, e10)
+
+// the last 60 daily log returns of every slot, one row per bar
+var matrix<float> RM = matrix.new<float>(0, SLOTS, na)
+RM.add_row(RM.rows(), array.from(r1, r2, r3, r4, r5, r6, r7, r8, r9, r10))
+if RM.rows() > CORR_WINDOW
+    RM.remove_row(0)
+
+f_corr(int i, int j) =>
+    float sx  = 0.0
+    float sy  = 0.0
+    float sxx = 0.0
+    float syy = 0.0
+    float sxy = 0.0
+    int   n   = 0
+    if RM.rows() > 0
+        for k = 0 to RM.rows() - 1
+            float x = RM.get(k, i)
+            float y = RM.get(k, j)
+            if not na(x) and not na(y)
+                sx  += x
+                sy  += y
+                sxx += x * x
+                syy += y * y
+                sxy += x * y
+                n   += 1
+    float vx = n > 0 ? sxx / n - math.pow(sx / n, 2) : 0.0
+    float vy = n > 0 ? syy / n - math.pow(sy / n, 2) : 0.0
+    // fewer than 20 common days: assume 0.3, the usual figure between two US stocks
+    n >= 20 and vx > 0 and vy > 0 ? (sxy / n - sx / n * sy / n) / math.sqrt(vx * vy) : 0.3
+
+// ─────────────────────────────────────────────────────────────── per position, then the book
+f_name(int i) =>
+    SYM.get(i) == "" ? syminfo.ticker : syminfo.ticker(SYM.get(i))
+
+f_active(int i) =>
+    QTY.get(i) > 0 and not na(CLS.get(i)) and not na(ATR.get(i))
+
+f_sessions(int i) =>
+    int e = ERN.get(i)
+    float d = na(e) ? na : (e - time_close) / 86400000.0
+    not na(d) and d > -1.0 ? math.max(0.0, math.round(d * 5.0 / 7.0)) : na
+
+f_r(int i) =>
+    float risk = ENT.get(i) - STP.get(i)
+    risk > 0 and STP.get(i) > 0 ? (CLS.get(i) - ENT.get(i)) / risk : na
+
+float sqrtH    = math.sqrt(i_hold)
+int   nActive  = 0
+float exposure = 0.0
+float openRisk = 0.0
+float result   = 0.0
+float sumWu    = 0.0
+array<float> WU = array.new<float>(SLOTS, 0.0)       // weight x band unit of each position: shares x ATR x sqrt(h) / equity
+for i = 0 to SLOTS - 1
+    if f_active(i) and i_equity > 0
+        nActive  += 1
+        exposure += QTY.get(i) * CLS.get(i) / i_equity
+        openRisk += STP.get(i) > 0 ? QTY.get(i) * math.max(CLS.get(i) - STP.get(i), 0.0) / i_equity : 0.0
+        result   += ENT.get(i) > 0 ? QTY.get(i) * (CLS.get(i) - ENT.get(i)) : 0.0
+        WU.set(i, QTY.get(i) * ATR.get(i) * sqrtH / i_equity)
+        sumWu    += WU.get(i)
+
+float varP   = 0.0
+float rhoSum = 0.0
+int   pairs  = 0
+if barstate.islast or barstate.isrealtime
+    for i = 0 to SLOTS - 1
+        if WU.get(i) > 0
+            varP += WU.get(i) * WU.get(i)
+            if i < SLOTS - 1
+                for j = i + 1 to SLOTS - 1
+                    if WU.get(j) > 0
+                        float rho = f_corr(i, j)
+                        varP   += 2.0 * WU.get(i) * rho * WU.get(j)
+                        rhoSum += rho
+                        pairs  += 1
+float sP      = varP > 0 ? math.sqrt(varP) : na            // predicted scale of the book's move over h bars, as a fraction of equity
+float bandLo  = sP * PQ05
+float bandHi  = sP * PQ95
+float halfLo  = sP * PQ25
+float halfHi  = sP * PQ75
+float nEff    = varP > 0 ? sumWu * sumWu / varP : na       // 1 if the positions move as one, N if they are independent and equal
+float rhoAvg  = pairs > 0 ? rhoSum / pairs : na
+bool  hot     = 100.0 * openRisk > i_heatMax
+
+// ─────────────────────────────────────────────────────────────── one alert for the whole book (at the daily close)
+var array<bool> wasInside = array.new<bool>(SLOTS, false)
+var array<bool> wasTimeUp = array.new<bool>(SLOTS, false)
+var bool        wasHot    = false
+string msg = ""
+for i = 0 to SLOTS - 1
+    bool  on      = f_active(i)
+    float sess    = f_sessions(i)
+    bool  inside  = on and not na(sess) and sess <= i_hold
+    bool  timeUp  = on and HLD.get(i) >= i_hold
+    bool  touched = on and HLD.get(i) >= 1 and STP.get(i) > 0 and LOW.get(i) <= STP.get(i)
+    if touched
+        msg += f_name(i) + ": traded at or below its stop " + str.tostring(STP.get(i), format.mintick) + " (" + str.tostring(f_r(i), "#.##") + " R).  "
+    if timeUp and not wasTimeUp.get(i)
+        msg += f_name(i) + ": day " + str.tostring(HLD.get(i), "#") + ", holding period complete (" + str.tostring(f_r(i), "#.##") + " R).  "
+    if inside and not wasInside.get(i)
+        msg += f_name(i) + ": earnings in about " + str.tostring(sess, "#") + " sessions, inside the holding period.  "
+    wasInside.set(i, inside)
+    wasTimeUp.set(i, timeUp)
+if hot and not wasHot
+    msg += "Book: open risk to the stops " + str.tostring(100.0 * openRisk, "#.#") + "% of equity, above your limit of " + str.tostring(i_heatMax, "#.#") + "%.  "
+wasHot := hot
+if barstate.isconfirmed and msg != ""
+    alert(msg, alert.freq_once_per_bar_close)
+
+// ─────────────────────────────────────────────────────────────── table (last bar)
+f_tablePos(string s) =>
+    s == "Top right" ? position.top_right : s == "Bottom right" ? position.bottom_right : s == "Top left" ? position.top_left : position.bottom_left
+
+string TS      = i_textSize == "Tiny" ? size.tiny : i_textSize == "Small" ? size.small : size.normal
+color  C_FG    = chart.fg_color
+color  C_MUTED = color.new(chart.fg_color, 45)
+int    COLS    = 7
+int    ROWS    = 22
+
+var table tb = table.new(f_tablePos(i_tablePos), COLS, ROWS, bgcolor = color.new(chart.bg_color, 6), frame_color = color.new(chart.fg_color, 78),
+     frame_width = 1, border_width = 0)
+
+f_cell(int col, int row, string txt, color c, string tip) =>
+    table.cell(tb, col, row, txt, text_halign = col == 0 ? text.align_left : text.align_right, text_size = TS, text_color = c, tooltip = tip)
+
+f_section(int row, string title) =>
+    table.cell(tb, 0, row, title, text_halign = text.align_left, text_size = TS, text_color = i_cAccent, bgcolor = color.new(i_cAccent, 88))
+    table.merge_cells(tb, 0, row, COLS - 1, row)
+
+f_wide(int row, string k, string v, color vc, string tag, string tip) =>
+    color tc = tag == "D" or tag == "C" ? i_cGood : C_MUTED
+    table.cell(tb, 0, row, k, text_halign = text.align_left, text_size = TS, text_color = C_MUTED, tooltip = tip)
+    table.cell(tb, 1, row, v, text_halign = text.align_left, text_size = TS, text_color = vc, tooltip = tip)
+    table.merge_cells(tb, 1, row, COLS - 2, row)
+    table.cell(tb, COLS - 1, row, tag, text_halign = text.align_center, text_size = TS, text_color = tc,
+         tooltip = tag == "D" ? "Demonstrated out of sample on data set aside for 2023-2026." :
+         tag == "C" ? "Checked once on 2023-2026 with constants committed beforehand; not part of the pre-registered list." : "")
+
+if barstate.islast
+    table.clear(tb, 0, 0, COLS - 1, ROWS - 1)
+    string hb = str.tostring(i_hold) + " bars"
+    int row = 0
+    table.cell(tb, 0, row, "SL PORTFOLIO DESK   ·   " + str.tostring(nActive) + (nActive == 1 ? " position" : " positions") + "   ·   hold " + hb,
+         text_halign = text.align_left, text_size = TS, text_color = color.white, bgcolor = i_cAccent)
+    table.merge_cells(tb, 0, row, COLS - 1, row)
+    row += 1
+    if nActive == 0
+        f_wide(row, "Setup", "Settings > Inputs: for each position enter the symbol, shares, entry, stop and entry date", i_cWarn, "", "A row is on when its shares are above 0.")
+        row += 1
+    else
+        f_cell(0, row, "Position", C_MUTED, "")
+        f_cell(1, row, "% of equity", C_MUTED, "Shares x last close / account equity.")
+        f_cell(2, row, "Result", C_MUTED, "R = (close - entry) / (entry - stop).")
+        f_cell(3, row, "Day", C_MUTED, "Daily bars since the entry date, entry day = 1, of the holding period.")
+        f_cell(4, row, "At risk", C_MUTED, "What the position still loses if its stop fills at its price, as % of equity. 0 once the stop is above the price paid and the price above the stop.")
+        f_cell(5, row, "Earnings", C_MUTED, "Sessions to the next report (estimated from calendar days). Date read when the script loads.")
+        f_cell(6, row, "Status", C_MUTED, "")
+        row += 1
+        for i = 0 to SLOTS - 1
+            if f_active(i)
+                float rNow    = f_r(i)
+                float sess    = f_sessions(i)
+                bool  inside  = not na(sess) and sess <= i_hold
+                bool  timeUp  = HLD.get(i) >= i_hold
+                bool  touched = HLD.get(i) >= 1 and STP.get(i) > 0 and LOW.get(i) <= STP.get(i)
+                bool  setup   = na(rNow)
+                float atRisk  = STP.get(i) > 0 ? 100.0 * QTY.get(i) * math.max(CLS.get(i) - STP.get(i), 0.0) / i_equity : na
+                f_cell(0, row, f_name(i), C_FG, str.tostring(QTY.get(i), "#.##") + " shares   ·   entry " + str.tostring(ENT.get(i), format.mintick) + "   ·   stop " +
+                     str.tostring(STP.get(i), format.mintick) + "   ·   last " + str.tostring(CLS.get(i), format.mintick))
+                f_cell(1, row, str.tostring(100.0 * QTY.get(i) * CLS.get(i) / i_equity, "#.#") + "%", C_FG, "")
+                f_cell(2, row, setup ? "-" : (rNow >= 0 ? "+" : "") + str.tostring(rNow, "#.##") + " R", setup ? C_MUTED : rNow >= 0 ? i_cGood : i_cStop, "")
+                f_cell(3, row, HLD.get(i) >= 1 ? str.tostring(HLD.get(i), "#") + " / " + str.tostring(i_hold) : "-", timeUp ? i_cWarn : C_FG, "")
+                f_cell(4, row, na(atRisk) ? "no stop" : str.tostring(atRisk, "#.##") + "%", na(atRisk) ? i_cWarn : C_FG, "")
+                f_cell(5, row, na(sess) ? "-" : str.tostring(sess, "#"), inside ? i_cStop : C_FG, inside ? "Inside the holding period: about 1 report in 10 gaps more than 2 ATR against the holder." : "")
+                string st = touched ? "STOP TOUCHED" : setup ? "CHECK ENTRY / STOP" : inside ? "EARNINGS" : timeUp ? "TIME UP" : "ok"
+                color  sc = touched ? i_cStop : setup or inside or timeUp ? i_cWarn : i_cGood
+                table.cell(tb, 6, row, st, text_halign = text.align_center, text_size = TS, text_color = sc, bgcolor = color.new(sc, 85))
+                row += 1
+        f_section(row, "BOOK")
+        row += 1
+        f_wide(row, "Invested", str.tostring(100.0 * exposure, "#.#") + "% of equity   ·   result so far " + str.format("{0,number,integer}", result), exposure > 1.0 ? i_cWarn : C_FG, "",
+             "Sum of the positions' values over account equity. Above 100% the book is leveraged.")
+        row += 1
+        f_wide(row, "Open risk", str.tostring(100.0 * openRisk, "#.##") + "% of equity if every stop fills at its price   ·   limit " + str.tostring(i_heatMax, "#.#") + "%",
+             hot ? i_cStop : C_FG, "D", "The sum of the 'At risk' column. About 15% of stops fill below their price and about 1 trade in 100 loses more than 1.5 times its planned risk.")
+        row += 1
+        f_wide(row, "9 outcomes in 10, " + hb, na(sP) ? "-" : str.tostring(100.0 * bandLo, "#.#") + "% to +" + str.tostring(100.0 * bandHi, "#.#") + "% of equity   ·   " +
+             str.format("{0,number,integer}", bandLo * i_equity) + " to +" + str.format("{0,number,integer}", bandHi * i_equity), C_FG, "C",
+             "How far the whole book usually moves over the holding period if nothing is sold, given each position's ATR and how the positions have moved together over the last 60 days. On 2023-2026 this band held 88.9% to 90.2% of outcomes for books of 2 to 10 positions. Stops are ignored.")
+        row += 1
+        f_wide(row, "1 outcome in 2", na(sP) ? "-" : str.tostring(100.0 * halfLo, "#.#") + "% to +" + str.tostring(100.0 * halfHi, "#.#") + "% of equity", C_FG, "C",
+             "On 2023-2026 this band held 45.9% to 49.8% of outcomes.")
+        row += 1
+        f_wide(row, "Diversification", na(nEff) ? "-" : "behaves like " + str.tostring(nEff, "#.#") + " independent positions, of " + str.tostring(nActive) +
+             (na(rhoAvg) ? "" : "   ·   average correlation " + str.tostring(rhoAvg, "#.##")), not na(nEff) and nActive >= 3 and nEff < 0.5 * nActive ? i_cWarn : C_FG, "",
+             "Arithmetic on the last 60 daily returns. Ten positions that behave like three are three bets, not ten.")
+        row += 1
+    table.cell(tb, 0, row, "D demonstrated   ·   C checked once on 2023-26   ·   daily values, final at the close   ·   hover a cell for its meaning",
+         text_halign = text.align_left, text_size = size.tiny, text_color = C_MUTED)
+    table.merge_cells(tb, 0, row, COLS - 1, row)
+
+// ─────────────────────────────────────────────────────────────── values for the Data Window and CSV export
+plot(nActive,            "Positions",              display = display.data_window)
+plot(100.0 * exposure,   "Invested pct of equity", display = display.data_window)
+plot(100.0 * openRisk,   "Open risk pct of equity", display = display.data_window)
+plot(100.0 * bandLo,     "Book band 5pct",         display = display.data_window)
+plot(100.0 * bandHi,     "Book band 95pct",        display = display.data_window)
+plot(nEff,               "Independent positions",  display = display.data_window)
+plot(rhoAvg,             "Average correlation",    display = display.data_window)

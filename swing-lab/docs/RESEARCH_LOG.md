@@ -510,3 +510,70 @@ arithmetic of risk: how far a stock moves, how often a stop is hit by noise, how
 earnings night is. That is the product.
 
 **Trials:** see `registry/`. Validation looks: two runs. Lockbox: opened once, closed.
+
+---
+
+## 2026-11-12 (UTC) - Session 2, entry 8: after the lockbox - a band for the whole book, and the second round on the scripts
+
+Nothing in this entry is a lockbox claim in the protocol's sense: the lockbox was opened once, for
+the eight items of entry 7, and that evaluation stands as it is.
+
+### Descriptive readings of the full data after the evaluation (recorded in `registry/lockbox.json`)
+
+- **G60** earnings-night gap odds by year, to recalibrate the one displayed constant that failed:
+  a gap worse than -1 / -2 / -3 ATR on 20% / 10% / 5% of reaction bars over 2017-2026; by year
+  15-27%, 5-15%, 3-8%. The low years (2020-22) are the years of high background volatility.
+  Displayed as "about 20% / 10% / 5%", tagged untested.
+- **G61** what one random trade looks like in R units, 2018-07 to 2026-11, net of costs: stop
+  3 ATR, 10 bars: mean +0.01 R, standard deviation 0.76 R, 15.8% stopped; 20 bars: +0.05 R, 1.04 R.
+  Used to size the forward test in the playbook.
+
+### G70 - how far does a whole book move?
+
+The owner holds several positions at once; SL Risk Desk speaks about one. Question: can the same
+ATR arithmetic give a range for the book? Predicted scale of the book's move over h bars:
+
+    s_p = sqrt( sum_ij  w_i u_i  rho_ij  w_j u_j ),    u_i = ATR14_i / close_i * sqrt(h),
+
+w the weights as fractions of equity, rho the correlation of the last 60 daily log returns.
+Measured on random books of 1 to 10 universe stocks, sized as SL Risk Desk sizes them (weight
+proportional to 1 / ATR%, capped at 20%) and, as a check, equally weighted; 24,040 books per cell
+on 2011-18 and 14,880 on 2018-22.
+
+| Quantiles of book return / s_p, 10 bars | 5% | 25% | 75% | 95% |
+|---|---|---|---|---|
+| 1 position, 2011-18 / 2018-22 | -1.13 / -1.24 | -0.37 / -0.42 | +0.49 / +0.46 | +1.18 / +1.16 |
+| 5 positions | -1.16 / -1.41 | -0.35 / -0.39 | +0.54 / +0.53 | +1.15 / +1.11 |
+| 10 positions | -1.15 / -1.45 | -0.33 / -0.37 | +0.54 / +0.54 | +1.12 / +1.07 |
+| 3 to 10 positions, both periods pooled (frozen) | **-1.25** | **-0.36** | **+0.53** | **+1.13** |
+
+The scale works: once the correlations are in s_p, the standardised outcome of a ten-stock book
+looks like that of a single stock. What it does not capture is the left tail of a diversified
+book in a crash, when correlations jump (5% quantile -1.45 in 2018-22 against -1.15 in 2011-18).
+
+Constants and criterion were committed (`research/confirm/portfolio_band_constants.json`, commit
+`7b1bd5f`) **before** the single check on 2023-01 to 2026-11:
+
+| Risk-weighted books, 2023-26 | 90% band held | 50% band held | Below the 5% line / above the 95% line |
+|---|---|---|---|
+| 5 bars, 2 to 10 positions | 89.5-90.1% | 48.7-49.8% | 3.6-3.9% / 6.3-6.8% |
+| 10 bars | 89.0-89.8% | 46.7-47.7% | 3.8-4.1% / 6.2-7.0% |
+| 20 bars | 88.9-90.2% | 45.9-47.2% | 3.0-3.7% / 6.6-7.5% |
+
+Criterion (86-94% and 45-55% in every cell): **met** in all 15 cells; equal-weighted books
+89.5-91.1% and 46.7-50.8%. The misses were lopsided in 2023-26, a rising market: fewer books
+below the band than above it. **Label: checked once on 2023-26 with constants committed
+beforehand; not on the pre-registered list, so not "demonstrated" under the protocol.** The
+scripts tag it C.
+
+### Scripts, second round
+
+- `pine/sl_risk_desk.pine` redesigned for reading at a glance (shaded cone, sectioned table with
+  tags and row tooltips, position mode, optional envelope of earlier bands). Mathematics
+  unchanged; the parity checker was extended to the envelope and passes.
+- `pine/sl_portfolio_desk.pine`, new: up to ten positions from inputs, one table, one alert for
+  the whole book; open risk, the band above, and the number of independent positions the book
+  behaves like. `tools/parity_check.py book` shows that a transliteration of its arithmetic gives
+  the same s_p as the formula the band was calibrated with.
+- A schematic preview of both, drawn from the scripts' own arithmetic on real bars, is in
+  `docs/img/` (generator in `tools/preview/`). It is not a TradingView screenshot.

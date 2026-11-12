@@ -23,6 +23,7 @@ Three checks, from the weakest to the strongest.
 Usage (from swing-lab/):
     python tools/parity_check.py constants
     python tools/parity_check.py self AAPL NVDA GE KO --k 3 --hold 10
+    python tools/parity_check.py book AAPL NVDA XOM JPM KO GE --hold 10
     python tools/parity_check.py tv-csv path/to/export.csv --k 3 --hold 10 --equity 100000 --risk 0.75 --maxpos 20
     python tools/parity_check.py tv-trades path/to/chart.csv path/to/trades.csv --k 2 --hold 10
 Exit code 0 when every comparison is inside its tolerance.
@@ -49,6 +50,8 @@ from research.swinglab import trades as TR  # noqa: E402
 
 PINE_DESK = ROOT / "pine" / "sl_risk_desk.pine"
 PINE_ODDS = ROOT / "pine" / "sl_odds_check.pine"
+PINE_BOOK = ROOT / "pine" / "sl_portfolio_desk.pine"
+BOOK_CONSTANTS = ROOT / "research" / "confirm" / "portfolio_band_constants.json"
 KS = (1.0, 1.5, 2.0, 2.5, 3.0, 4.0)
 
 
@@ -87,6 +90,16 @@ def check_constants() -> bool:
         same = got == LB.PRODUCT_BANDS[h]
         ok &= same
         print(f"  {PINE_DESK.name:<22s} band quantiles, {h:>2d} bars: {'identical to the lockbox bands' if same else f'DIFFERENT {got} vs {LB.PRODUCT_BANDS[h]}'}")
+    if PINE_BOOK.exists():
+        import json
+        src = PINE_BOOK.read_text()
+        want = json.loads(BOOK_CONSTANTS.read_text())["bands"]
+        q = {nm: _pine_ternary(src, nm) for nm in ("PQ05", "PQ25", "PQ75", "PQ95")}
+        for h in (5, 10, 20):
+            got = [q["PQ05"][h], q["PQ25"][h], q["PQ75"][h], q["PQ95"][h]]
+            same = got == want[str(h)]
+            ok &= same
+            print(f"  {PINE_BOOK.name:<22s} book band, {h:>2d} bars: {'identical to the committed constants' if same else f'DIFFERENT {got} vs {want[str(h)]}'}")
     return ok
 
 
@@ -152,6 +165,79 @@ def pine_twin(o, h, l, c, v, *, k: float, hold: int, equity: float, risk_pct: fl
         "Envelope 5pct": e05, "Envelope 25pct": e25, "Envelope 75pct": e75, "Envelope 95pct": e95,
         "_y": y, "_f90": f90, "_f50": f50, "_fhit": fhit, "_have_s": have_s,
     }
+
+
+def book_twin(closes: np.ndarray, lows: np.ndarray, atrs: np.ndarray, rets: np.ndarray, qty, entry, stop, held, *, equity: float, hold: int, heat_max: float = 6.0) -> dict:
+    """sl_portfolio_desk.pine on its last bar, statement by statement.
+    closes, lows, atrs: [N] values of the last bar; rets: [60, N] the last 60 daily log returns (rows oldest first);
+    qty, entry, stop, held: [N] inputs and day counts."""
+    import json
+    q05, q25, q75, q95 = json.loads(BOOK_CONSTANTS.read_text())["bands"][str(hold)]
+    N = len(closes)
+    sqrt_h = np.sqrt(hold)                                                           # float sqrtH = math.sqrt(i_hold)
+    active = [bool(qty[i] > 0 and np.isfinite(closes[i]) and np.isfinite(atrs[i])) for i in range(N)]      # f_active(i)
+    exposure = sum(qty[i] * closes[i] / equity for i in range(N) if active[i])       # exposure += QTY.get(i) * CLS.get(i) / i_equity
+    open_risk = sum(qty[i] * max(closes[i] - stop[i], 0.0) / equity for i in range(N) if active[i] and stop[i] > 0)   # openRisk += ...
+    result = sum(qty[i] * (closes[i] - entry[i]) for i in range(N) if active[i] and entry[i] > 0)
+    wu = [qty[i] * atrs[i] * sqrt_h / equity if active[i] else 0.0 for i in range(N)]                      # WU.set(i, QTY.get(i) * ATR.get(i) * sqrtH / i_equity)
+
+    def corr(i, j):                                                                  # f_corr(i, j)
+        x, y = rets[:, i], rets[:, j]
+        m = np.isfinite(x) & np.isfinite(y)
+        n = int(m.sum())
+        if n < 20:
+            return 0.3
+        x, y = x[m], y[m]
+        vx, vy = (x * x).mean() - x.mean() ** 2, (y * y).mean() - y.mean() ** 2
+        return ((x * y).mean() - x.mean() * y.mean()) / np.sqrt(vx * vy) if vx > 0 and vy > 0 else 0.3
+
+    var_p, rho_sum, pairs = 0.0, 0.0, 0
+    for i in range(N):
+        if wu[i] > 0:
+            var_p += wu[i] * wu[i]                                                   # varP += WU.get(i) * WU.get(i)
+            for j in range(i + 1, N):
+                if wu[j] > 0:
+                    rho = corr(i, j)
+                    var_p += 2.0 * wu[i] * rho * wu[j]                               # varP += 2.0 * WU.get(i) * rho * WU.get(j)
+                    rho_sum += rho
+                    pairs += 1
+    s_p = np.sqrt(var_p) if var_p > 0 else np.nan                                    # float sP = varP > 0 ? math.sqrt(varP) : na
+    rows = []
+    for i in range(N):
+        if not active[i]:
+            continue
+        risk = entry[i] - stop[i]
+        r_now = (closes[i] - entry[i]) / risk if risk > 0 and stop[i] > 0 else np.nan      # f_r(i)
+        rows.append({"i": i, "pct": 100.0 * qty[i] * closes[i] / equity, "r": r_now, "day": held[i],
+                     "at_risk": 100.0 * qty[i] * max(closes[i] - stop[i], 0.0) / equity if stop[i] > 0 else np.nan,
+                     "time_up": held[i] >= hold, "touched": held[i] >= 1 and stop[i] > 0 and lows[i] <= stop[i]})
+    return {"rows": rows, "n_active": sum(active), "exposure": exposure, "open_risk": open_risk, "result": result, "s_p": s_p,
+            "band": (s_p * q05, s_p * q25, s_p * q75, s_p * q95), "n_eff": sum(wu) ** 2 / var_p if var_p > 0 else np.nan,
+            "rho_avg": rho_sum / pairs if pairs else np.nan, "hot": 100.0 * open_risk > heat_max, "wu": wu}
+
+
+def check_book(symbols, a) -> bool:
+    """The book twin's scale s_p against the formula the band was calibrated with (g70: einsum over the correlation matrix)."""
+    frames = {s_: load_yahoo(s_).set_index("date") for s_ in symbols}
+    idx = None
+    for f in frames.values():
+        idx = f.index if idx is None else idx.intersection(f.index)
+    idx = idx.sort_values()[-400:]
+    C = np.column_stack([frames[s_].loc[idx, "close"].to_numpy(dtype=float) for s_ in symbols])
+    Hh = np.column_stack([frames[s_].loc[idx, "high"].to_numpy(dtype=float) for s_ in symbols])
+    Ll = np.column_stack([frames[s_].loc[idx, "low"].to_numpy(dtype=float) for s_ in symbols])
+    A = ta.atr(Hh, Ll, C, 14)
+    R = np.log(C / ta.shift(C, 1))
+    atrp = A[-1] / C[-1]
+    w = np.minimum(0.0025 / atrp, 0.20)                       # the weights of g70's "risk" scheme
+    qty = w * a.equity / C[-1]
+    tw = book_twin(C[-1], Ll[-1], A[-1], R[-60:], qty, C[-1] * 0.99, C[-1] * 0.93, np.full(len(symbols), 3.0), equity=a.equity, hold=a.hold)
+    wu = w * atrp * np.sqrt(a.hold)
+    s_ref = float(np.sqrt(np.einsum("i,ij,j->", wu, np.corrcoef(R[-60:], rowvar=False), wu)))
+    ok = abs(tw["s_p"] - s_ref) / s_ref < 1e-12
+    print(f"  book of {len(symbols)}: scale s_p, Pine twin {tw['s_p']:.10f}  calibration formula {s_ref:.10f}  {'ok' if ok else 'FAIL'}"
+          f"   (behaves like {tw['n_eff']:.2f} independent positions; average correlation {tw['rho_avg']:.2f})")
+    return ok
 
 
 # ------------------------------------------------------------------------------------ the research side
@@ -344,7 +430,7 @@ def check_tv_trades(chart_csv: str, trades_csv: str, a) -> bool:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("mode", choices=["constants", "self", "tv-csv", "tv-trades"])
+    ap.add_argument("mode", choices=["constants", "self", "book", "tv-csv", "tv-trades"])
     ap.add_argument("items", nargs="*")
     ap.add_argument("--k", type=float, default=3.0)
     ap.add_argument("--hold", type=int, default=10, choices=[5, 10, 20])
@@ -356,6 +442,8 @@ def main() -> int:
         ok = check_constants()
     elif a.mode == "self":
         ok = check_constants() and check_self(a.items or ["AAPL", "NVDA", "GE", "KO"], a)
+    elif a.mode == "book":
+        ok = check_constants() and check_book(a.items or ["AAPL", "NVDA", "XOM", "JPM", "KO", "GE"], a)
     elif a.mode == "tv-csv":
         ok = all([check_tv_csv(p, a) for p in a.items])
     else:
