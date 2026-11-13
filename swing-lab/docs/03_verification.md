@@ -19,6 +19,15 @@ behaviour of `earnings.future_time` (for the chart symbol and, in the portfolio 
 symbols), the lower-timeframe request used on weekly charts, alert delivery. Treat the first load
 as a test and send a screenshot.
 
+## First load on a chart, 13 Nov 2026 (owner's screenshot)
+
+Both indicators were added to a 1-minute chart of BINANCE:SPYUSDT.P, a crypto perpetual contract
+and not the SPY ETF. SL Risk Desk 2.2 ran: the table rendered with its PLAN, RANGE and EVENTS
+sections, "Universe: OUTSIDE" (correct for a crypto contract), "Earnings: no date on file" and the
+index row. SL Portfolio Desk 1.1 stopped on bar 0 with its own guard, "use a daily chart (for
+example SPY)", as designed for a non-daily chart. Not yet seen: either script on a daily chart of
+a US stock, the cone, position mode, the Portfolio Desk's table, alerts.
+
 ## Independent review (level 2c), 12 Nov 2026
 
 Four reviewers read SL Risk Desk 2.1 and SL Portfolio Desk 1.0 against TradingView's
