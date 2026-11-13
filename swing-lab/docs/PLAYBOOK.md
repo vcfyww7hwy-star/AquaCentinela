@@ -1,6 +1,6 @@
 # Playbook: using SL Risk Desk, SL Portfolio Desk and SL Odds Check
 
-12 Nov 2026 (UTC); SL Risk Desk 2.2, SL Portfolio Desk 1.1. Evidence tags, the same letters the scripts print: **D** demonstrated out of
+13 Nov 2026 (UTC); SL Risk Desk 2.2, SL Portfolio Desk 1.1. Evidence tags, the same letters the scripts print: **D** demonstrated out of
 sample (frozen before, and passed on, the data set aside for 2023-2026); **C** checked once on
 2023-2026 with constants committed beforehand, outside the pre-registered list; **S** suggestive;
 **U** untested. Sources: `RESEARCH_LOG.md` entries 5-8, `02_research_map.md`.
@@ -29,6 +29,32 @@ forward test at the end measures whether that decision adds anything.
 4. The first load is a test: the scripts compile and their arithmetic is checked, but they have
    not run on a chart yet. If the editor or the chart shows an error, copy the message and the
    line number.
+
+## Set up once
+
+**Inputs belong to the chart, not to the symbol.** An indicator keeps its inputs when you type a
+new symbol on the same chart, so a position typed into SL Risk Desk on AAPL would be drawn on MSFT
+the moment you switch. Hence two saved layouts:
+
+| Layout | Chart | Indicator and inputs | Use |
+|---|---|---|---|
+| **Plan** | Daily, any stock (switch symbols freely) | SL Risk Desk with "I hold this stock" always **off** | Evaluating candidates; the order ticket |
+| **Book** | Daily SPY, never switched | SL Portfolio Desk with every open position | Watching all positions; the one alert |
+| Position (optional) | Daily chart of one held stock, its own layout or tab | SL Risk Desk with "I hold this stock" on | Seeing entry, stop and day h on the stock's chart; per-stock alerts if the Portfolio Desk's earnings column turns out not to work |
+
+Then: create the book alert (see "Alerts"), and a trade log (see "The forward test").
+
+## Orders
+
+The odds were measured for this exact execution (research simulator, `research/swinglab/trades.py`):
+
+| Step | Order | Why |
+|---|---|---|
+| Entry | Market order at the open of the day after the plan (market-on-open if the broker offers it) | The simulator enters at the next open |
+| Stop | Sell **stop-market**, good-till-cancelled, at fill minus the stop distance shown in the table | A stop-market fills at the stop, or at the open when the price gaps through it, as simulated. A stop-limit can be skipped on a gap and leave the position open |
+| Time exit | Sell at the close of day h, the entry day being day 1 (market-on-close if offered). Write the date down at entry: count h sessions, skipping exchange holidays | The simulator exits at the close of the h-th bar. The "holding period complete" alert arrives after that close; if you missed it, sell at the next open |
+
+Size does not depend on the fill: shares x stop distance is the money at risk whatever the open is.
 
 ## SL Risk Desk: what you see
 
@@ -96,29 +122,48 @@ daily bar.
    stop the stated distance below your actual fill.
 4. Look at the cone against your target. If the target is beyond the 95% line, it is a 1-in-20
    outcome within this holding period: lengthen the period or lower the target.
-5. Turn on "Send the plan at each daily close" and create the alert if you want the ticket on your
+5. On the Book layout: the book's open risk plus this trade's "At risk" must stay under your limit
+   (default 6%); if Diversification is amber, skip or halve a trade in the same group.
+6. Turn on "Send the plan at each daily close" and create the alert if you want the ticket on your
    phone at the close.
 
 **After the fill**
 
-6. Settings > Open position: tick "I hold this stock", type the entry price, the first stop
-   (fill minus the distance), the shares and the date. The table switches to POSITION. If you
-   move the stop later, type the new level in "Stop now" and leave the first stop alone.
-7. Delete the old alert and create a new one (an alert keeps the inputs it was created with).
-8. Add the position to SL Portfolio Desk.
+7. Place the stop-market order at fill minus the distance; write down the day-h date.
+8. Book layout, SL Portfolio Desk, the first empty Position group: symbol; shares, entry, first
+   stop, 0; entry date. Delete the book alert and create it again (an alert keeps the inputs it
+   was created with). If you move the stop later, type the new level as the fourth number ("stop
+   now") and leave the first stop alone.
+9. Optional, a Position layout: SL Risk Desk with "I hold this stock", the same numbers, and its
+   own alert.
 
 **While holding** (alerts do the watching)
 
-9. "Traded at or below your stop": check that the broker's stop executed. The message is sent
-   when the price first reaches the stop (on an intraday chart, again once on each later day it
-   is still there).
-10. "Earnings inside the holding period": decide per "Earnings".
-11. "Holding period complete": exit, or decide deliberately to start a new period, with a new
-    stop and a new day 1.
+10. Act on each message as in "Alert messages and what to do".
 
 **After closing**
 
-12. Untick "I hold this stock", remove the row from SL Portfolio Desk, log the trade's R.
+11. Set the position's shares to 0 in SL Portfolio Desk (and untick "I hold this stock" on its
+    Position layout), recreate the alert, log the trade's R.
+
+### Alert messages and what to do
+
+| Message | Action |
+|---|---|
+| "... plan for the next open: N shares, stop D below the fill ..." | The order ticket. If you take the trade, run the checks above and enter at the open |
+| "... traded at or below your stop ..." / "... its stop ..." | Confirm at the broker that the stop filled. If it did not (no order, or a stop-limit skipped on a gap), sell at the next open. Then close the records |
+| "... holding period complete ..." / "... day N, holding period complete ..." | If you did not sell at today's close, sell at the next open |
+| "... earnings ... before the end of the holding period / before the planned exit" | Apply the choice under "Earnings": exit at the close of the last session before the report, cut to half, or hold knowingly |
+| "Book: open risk to the stops X% ..., above your limit" | Open no new position until it is back under the limit. Rising prices raise open risk too: profit above the stop counts |
+| "SPY: closed BELOW/ABOVE its 200-day average" | Information only. It changes neither the size nor the stop (S) |
+
+| Portfolio status | Action |
+|---|---|
+| STOP TOUCHED | As the stop message above |
+| TIME UP | As the holding-period message above |
+| EARNINGS | As the earnings message above |
+| CHECK INPUTS | Entry or first stop missing, or the first stop is not below the entry: fix the inputs |
+| NO DATA | The symbol did not load and is not in the book figures: pick it again in the symbol search |
 
 ## Choosing the stop
 
@@ -244,7 +289,23 @@ average with a standard deviation of 0.76 R (2018-2026, 54,509 simulated trades;
 standard deviation 1.04 R) (U). Your trades have to beat that.
 
 Log one row per closed trade: date in, date out, symbol, entry, stop, exit, **R = (exit - entry) /
-(entry - stop)**. Keep a running score:
+(entry - stop)**, using actual fills and the first stop, net of commissions. A spreadsheet with
+headers in row 1 and one trade per row from row 2:
+
+| Column | Content | Formula in row 2 (copy down) |
+|---|---|---|
+| A | Trade number | 1, 2, 3 ... |
+| B-C | Symbol; exit reason (stop, time, earnings, other) | typed |
+| D-E-F | Entry fill; first stop; shares | typed |
+| G-H | Exit fill; commissions in money, both legs | typed |
+| I | R | `=(G2-D2-H2/F2)/(D2-E2)` |
+| J | Sum of R | `=SUM($I$2:I2)` |
+| K | Score | `=J2-0.115*A2` |
+| L | Verdict | `=IF(K2>=13,"EDGE",IF(K2<=-7,"NO EDGE","CONTINUE"))` |
+
+In a Spanish-language Excel: `SUMA`, `SI`, and `;` between arguments.
+
+Keep a running score:
 
 > score = sum of R - 0.115 x number of trades
 
