@@ -277,42 +277,46 @@ alert above counts as one.
 
 ## Check the data feed once (volume depends on it)
 
-TradingView's support pages (read 23 Nov 2026) say that by default US stocks are shown with real-time
-data from Cboe's exchanges, "slightly different" from the primary exchanges, and that NASDAQ, NYSE
-and ARCA real-time data can be added for a fee ([Is US stock market data free by default?](https://in.tradingview.com/support/solutions/43000473924),
+What is known (TradingView's support pages read 23 Nov 2026, and this project's own measurements of
+11 Nov 2026, `_raw/pine_plans.md` section 10):
+
+| Bars | Without NASDAQ/NYSE real-time data | Effect on the scripts |
+|---|---|---|
+| Settled daily bars | Consolidated volume (AAPL and JPM equal to Yahoo within 0.06%) | None: SL Risk Desk and SL Volume read settled daily bars |
+| Intraday bars (1h, 4h, 5 min) | Cboe One's trades only, about 6% of the total (2-15% from day to day) | SL Volume compares intraday with intraday, so its ratios still hold; the pace is noisier |
+| The daily bar at the close | Provisional: 74% of the settled volume 2-9 minutes after the close (one day, one stock); replaced overnight | SL Volume reads today from 5-minute data until the bar settles |
+
+TradingView says by default US stock data comes from Cboe and that NASDAQ, NYSE and ARCA real-time data
+can be added for a fee ([Is US stock market data free by default?](https://in.tradingview.com/support/solutions/43000473924),
 [How to purchase additional market data](https://www.tradingview.com/support/solutions/43000471705)).
-Prices are low but always check them first. If the live bar carries only Cboe's share of trading
-while history is consolidated, every live volume reading is too low: SL Volume's "Today", its pace
-and its alert at the close. Three checks settle it:
+What intraday volume looks like **with** those subscriptions has not been measured.
+
+The check, once, about 10 minutes:
 
 | Check | How | Reading |
 |---|---|---|
-| 1. What the chart says | On a daily chart of NASDAQ:AAPL click the market-status mark next to the symbol name at the top left. TradingView's help says the dropdown names the data subscription that applies | It names Cboe, or offers NASDAQ real-time data: you are on the free Cboe feed |
-| 2. History | Add the built-in Volume indicator. Put the cursor on a past daily bar and read its volume in the indicator's legend (or in the Data Window). Compare with an independent source (your broker, or Yahoo Finance > Historical Data) for three stocks | Within about 3%: history is consolidated. About a fifth to a third of it: history is Cboe-only too |
-| 3. Live | During the session read today's volume on TradingView and, at the same minute, at your broker | Much lower on TradingView while check 2 matched: live is Cboe-only and live volume readings cannot be trusted |
+| 1. Which feed | On a daily chart of NASDAQ:AAPL click the market-status mark next to the symbol name at the top left; TradingView's help says the dropdown names the data subscription that applies. Or open your profile's subscriptions/billing page and look for NASDAQ or NYSE real-time data | Cboe, or an offer to buy NASDAQ data: the free feed. A NASDAQ/NYSE subscription listed: the paid feed |
+| 2. Settled history | Add the built-in Volume indicator; put the cursor on a past daily bar and read its volume in the indicator's legend or the Data Window; compare with Yahoo Finance > Historical Data for two or three stocks | Equal within about 1%: as measured. If not, send the numbers |
+| 3. Intraday share | On a 1h chart add up the seven regular-session bars of a past day and divide by that day's daily volume | About 0.06 (0.02-0.15): Cboe-only intraday, as measured. Near 1: consolidated intraday |
 
-What to do with the result:
-
-| History | Live | Consequence | Options |
-|---|---|---|---|
-| consolidated | consolidated | Everything works as designed | none |
-| consolidated | Cboe only | Live "Today", pace and the alert at the close read too low; closed bars may be corrected later | Buy NASDAQ and NYSE real-time (and ARCA for ETFs) as a non-professional, connect a broker that carries them, or use SL Volume only on closed bars, the next morning |
-| Cboe only | Cboe only | Ratios compare like with like and still work; dollar volume is understated, so SL Risk Desk's "Universe" row can say OUTSIDE wrongly | Same options; until then read "Universe" with that in mind |
+Nothing in the scripts needs the paid feed. It would make the pace less noisy; it costs money, so it
+is your decision.
 
 ## SL Volume
 
-A lower pane. It says how unusual a bar's volume is for this stock, and on a daily chart, while the
-session is open, how fast today's volume is running. It does **not** say anything about direction:
-no volume pattern predicted direction in this research (`RESEARCH_LOG.md`, entries 4 and 10).
+A lower pane. It says how unusual a bar's volume is for this stock and, on the daily chart of a US
+stock, how fast today's volume is running. It does **not** say anything about direction: no volume
+pattern predicted direction in this research (`RESEARCH_LOG.md`, entries 4 and 10).
 
 | Element | Meaning |
 |---|---|
-| Columns | Volume / typical volume, where typical is the **median** of the previous 50 bars (daily and higher) or of the last 20 sessions' bars at the same clock time (intraday). 1.0 is a typical bar. Solid from 2× (about 1 day in 20 in liquid US stocks). Blue: the close rose; amber: it fell; grey: the bar is still forming |
-| Dot (daily chart, session open) | Today's **pace**: volume so far against the median of the last 20 sessions at the same time of day |
+| Columns | Volume / typical volume, where typical is the **median** of the previous 50 bars (daily and higher) or of the last 20 sessions' bars at the same clock time (intraday). 1.0 is a typical bar. Solid from 2× (about 1 day in 20 in liquid US stocks). Blue: the close rose; amber: it fell |
+| Today's column (daily, US stocks) | While the session is open, the **pace**: volume so far against the median of the last 20 sessions by the same time of day, from 5-minute bars (capped at 5× on the chart). After the close, until the bar settles overnight, the day's 5-minute volume against typical days' 5-minute volume. Drawn in the text colour, not blue or amber |
 | E | An earnings report on that bar (after-close reports trade the next day) |
-| Table | Today or this bar: the ratio and the share of the last 250 bars (or of the same hour's bars) it exceeds; pace; "vs market": the stock's ratio divided by SPY's (near 1: the whole market traded heavily; well above 1: the volume is about this stock); earnings |
+| Table | "Today", "Last session", "This week" or "This bar": the ratio and the share of the last 250 bars (or of the same clock time's bars) it beats; while the session is open, the pace and the share of a typical day already done. "vs market": the stock's ratio divided by SPY's, measured the same way, also during the session (near 1: the whole market traded heavily; well above 1: the volume is about this stock). Earnings |
 
-How far the pace can be trusted (G81, 1-hour data for 2024):
+How far the pace can be trusted (G81, consolidated 1-hour data, 2024; on the free feed the pace counts
+Cboe trades only and is noisier than this):
 
 | Read at (ET) | A pace of 2 or more ends at 2 or more / 1.5 or more | Typical error |
 |---|---|---|
@@ -321,8 +325,14 @@ How far the pace can be trusted (G81, 1-hour data for 2024):
 | 12:30 | 6 / 9 times in 10 | 14% |
 | 14:30 | 7 / 10 times in 10 | 9% |
 
-Use it as a reason to look at a stock, never as a trade signal. The optional pace alert is sent at most
-once a day and only after the first hour. Before trusting any live reading, run the data check above.
+Alerts (one alert on the chart: Any alert() function call):
+
+| Alert | When |
+|---|---|
+| Unusual bar (on by default) | At the close of a bar at or above 2×. On the daily chart the figure is the 5-minute one, because the daily bar is still provisional at the close. On intraday charts, regular-session bars only unless you switch extended hours on |
+| Pace (off by default) | At most once a day, after 10:30 ET, when the pace reaches 2.5×. A reason to look at the stock, not to trade |
+
+On 13:00 early-close days the share of the day done is understated and the last intraday bar is short.
 
 ## Scanning a watchlist
 

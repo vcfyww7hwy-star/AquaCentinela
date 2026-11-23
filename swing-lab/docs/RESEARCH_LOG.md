@@ -720,3 +720,14 @@ Use: the playbook's wording of how early the pace can be read. No trading questi
 rough guide; from about 11:30 a pace of 2 or more ends at 1.5 or more five times in six. The
 script therefore sends its pace alert only after the first hour, and the playbook says so. Limits:
 hourly checkpoints, survivors liquid at the end of 2022, one year (2024).
+
+### SL Volume, review and version 1.1
+
+Four reviewers (runtime, logic, use, data feeds), each followed by a skeptic: 29 findings, 18
+confirmed, 6 uncertain, 5 refuted (`docs/03_verification.md`, `_raw/sl_volume_review_2026-11-23.json`).
+The one that mattered was found by three lenses independently: at the close TradingView's daily bar
+is provisional (74% of the settled volume in this project's own measurement of 11 Nov 2026), so the
+alert at the close compared a short day with settled history and would have missed real unusual
+days. Version 1.1 measures today on 5-minute data against typical days' 5-minute data until the bar
+settles, which also compares like with like on the free Cboe feed. The other changes are listed in
+the verification file. Compiles with 0 errors and 0 warnings; it has not run on a chart.

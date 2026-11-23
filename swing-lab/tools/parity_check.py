@@ -443,6 +443,7 @@ def check_tv_volume(path: str, a) -> bool:
     if vname is None:
         print("  The export has no Volume column: add the built-in Volume indicator to the chart and export again.")
         return False
+    d = d.iloc[:-1]       # the last bar may be today's, shown on the 5-minute basis until it settles
     v = d[vname].to_numpy(dtype=float)
     typ = pd.Series(v).rolling(a.nvol, min_periods=a.nvol).median().shift(1).to_numpy()
     with np.errstate(divide="ignore", invalid="ignore"):

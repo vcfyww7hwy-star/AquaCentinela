@@ -19,6 +19,31 @@ behaviour of `earnings.future_time` (for the chart symbol and, in the portfolio 
 symbols), the lower-timeframe request used on weekly charts, alert delivery. Treat the first load
 as a test and send a screenshot.
 
+## SL Volume (v1.1), 23 Nov 2026
+
+| Level | Status |
+|---|---|
+| 1 Compiles | **Done**: 0 errors, 0 warnings |
+| Evidence behind its content | G80 (absorption mark removed; relative volume adds little to ATR for risk) and G81 (pace accuracy), RESEARCH_LOG entries 10-11 |
+| 2c Independent review | **Done**: four lenses (runtime, logic, use, data feeds), a skeptic per lens; 29 findings: 18 confirmed, 6 uncertain, 5 refuted. Raw results: `_raw/sl_volume_review_2026-11-23.json` |
+| 3 Matches on TradingView | Waiting for an export of a daily chart with SL Volume and the built-in Volume indicator: `python tools/parity_check.py tv-volume export.csv` recomputes the typical volume, the ratio and the rank (the last bar is skipped: it may be on the 5-minute basis) |
+| Runs on a chart | Not yet |
+
+What the review changed (version 1.0 to 1.1):
+
+| Finding | Severity | Change |
+|---|---|---|
+| The alert at the close compared the provisional daily bar (74% of the settled volume in one measurement) with settled history, so it would have missed real unusual days | major (three lenses) | Today, until the bar settles, is measured on 5-minute data against typical days' 5-minute data; the rank is left out until it settles |
+| Hiding the pace also switched off the pace alert | minor | Curves are always built on daily US charts; the display switch hides only the display |
+| The pace was inflated in the first 5 minutes (pro rata on a front-loaded slot) | minor | No pace before 09:35; the forming column is capped at 5× on the chart |
+| "vs market" compared a partial bar with a settled one, was 1.0 on SPY itself, and had no intraday reading | minor | Same basis on both sides (pace with pace, 5-minute with 5-minute, settled with settled); hidden on the index's own chart |
+| An earnings report on the previous bar was read only on the last, possibly realtime, bar | minor (uncertain) | Read on every bar |
+| Labels: "Today" on weekly charts and weekends, "above 73%" read as 73% above, "2.0×" below the threshold, extended-hours alerts | minor / cosmetic | "Last session" / "This week"; "beats 73% of the last 250"; values rounded down; regular-session alerts by default |
+
+Still open, only a chart can settle them: whether `request.security_lower_tf()` delivers the realtime
+5-minute bars of the forming daily bar as assumed; when the daily bar settles overnight; whether
+odd-lot trades make live intraday bars larger than reloaded ones; `time_close` on early-close days.
+
 ## First load on a chart, 13 Nov 2026 (owner's screenshot)
 
 Both indicators were added to a 1-minute chart of BINANCE:SPYUSDT.P, a crypto perpetual contract
