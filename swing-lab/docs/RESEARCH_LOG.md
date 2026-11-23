@@ -687,3 +687,36 @@ V4, by rvol at t: coverage of the 90% band, of the 50% band, and the share of 3-
   has a wide range. Descriptive only: on non-earnings days with rvol > 2 the lower tail is a little
   fatter (6.6% below the 5% line, stops 17.2%); on earnings reaction days the bands are too wide.
 - V1: the review's 0.80-0.90 is right (0.875-0.877): on this pane "1.0" is not a typical day.
+
+## 2026-11-23 (UTC) - entry 11: SL Volume, and how far the intraday pace can be trusted (G81)
+
+The owner chose to act on G80. A new pane, `pine/sl_volume.pine`, replaces for this project the
+Relative Volume pane of trend-flow-suite (left unchanged): volume against the **median** of earlier
+bars (per clock time on intraday charts), its rank, the index's ratio for comparison, earnings
+marks, and on daily charts the **pace**: volume so far today against the median of the last 20
+sessions at the same time of day. No absorption, climax or dry-up marks (G80, V2).
+
+**G81 (descriptive, written before computing).** How well does the pace at each hour predict the
+day's final relative volume? Data: Yahoo 1-hour bars, 12 Dec 2023 - 31 Dec 2024 (the part of the
+intraday download outside the lockbox), full 7-bar days. Pace at the close of bar k = cumulative
+volume through bar k / median of the previous 20 sessions' cumulative volume through bar k. Final =
+day volume / median of the previous 20 sessions' day volume. Reported per checkpoint: rank
+correlation (Spearman), median absolute error of ln(pace / final), and for "unusual" (>= 2x)
+days the share caught by pace >= 2 and the share of pace >= 2 readings that end >= 2 and >= 1.5.
+Use: the playbook's wording of how early the pace can be read. No trading question is asked.
+
+### G81 results (`research/results/g81_pace_check.json`): 1,549 symbols, 260 days, 365,368 symbol-days
+
+| Pace read at (ET) | Rank corr. with the final | Median error | Within 25% of the final | Unusual days (final >= 2) caught by pace >= 2 | Pace >= 2 that ends >= 2 / >= 1.5 |
+|---|---|---|---|---|---|
+| 10:30 | 0.72 | 23% | 49% | 75% | 42% / 71% |
+| 11:30 | 0.81 | 17% | 61% | 79% | 52% / 84% |
+| 12:30 | 0.86 | 14% | 71% | 83% | 60% / 92% |
+| 13:30 | 0.90 | 11% | 79% | 86% | 66% / 97% |
+| 14:30 | 0.94 | 9% | 89% | 90% | 74% / 99% |
+| 15:30 | 0.97 | 6% | 97% | 94% | 82% / 100% |
+
+(Errors are |ln(pace / final)|, shown as a percentage.) Reading: in the first hour the pace is a
+rough guide; from about 11:30 a pace of 2 or more ends at 1.5 or more five times in six. The
+script therefore sends its pace alert only after the first hour, and the playbook says so. Limits:
+hourly checkpoints, survivors liquid at the end of 2022, one year (2024).

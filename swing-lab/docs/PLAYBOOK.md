@@ -275,6 +275,55 @@ or below a stop stays silent about that stop until the price recovers and falls 
 Limits on Premium (TradingView's pricing page, read 10-11 Nov 2026): 400 technical alerts; each
 alert above counts as one.
 
+## Check the data feed once (volume depends on it)
+
+TradingView's support pages (read 23 Nov 2026) say that by default US stocks are shown with real-time
+data from Cboe's exchanges, "slightly different" from the primary exchanges, and that NASDAQ, NYSE
+and ARCA real-time data can be added for a fee ([Is US stock market data free by default?](https://in.tradingview.com/support/solutions/43000473924),
+[How to purchase additional market data](https://www.tradingview.com/support/solutions/43000471705)).
+Prices are low but always check them first. If the live bar carries only Cboe's share of trading
+while history is consolidated, every live volume reading is too low: SL Volume's "Today", its pace
+and its alert at the close. Three checks settle it:
+
+| Check | How | Reading |
+|---|---|---|
+| 1. What the chart says | On a daily chart of NASDAQ:AAPL click the market-status mark next to the symbol name at the top left. TradingView's help says the dropdown names the data subscription that applies | It names Cboe, or offers NASDAQ real-time data: you are on the free Cboe feed |
+| 2. History | Add the built-in Volume indicator. Put the cursor on a past daily bar and read its volume in the indicator's legend (or in the Data Window). Compare with an independent source (your broker, or Yahoo Finance > Historical Data) for three stocks | Within about 3%: history is consolidated. About a fifth to a third of it: history is Cboe-only too |
+| 3. Live | During the session read today's volume on TradingView and, at the same minute, at your broker | Much lower on TradingView while check 2 matched: live is Cboe-only and live volume readings cannot be trusted |
+
+What to do with the result:
+
+| History | Live | Consequence | Options |
+|---|---|---|---|
+| consolidated | consolidated | Everything works as designed | none |
+| consolidated | Cboe only | Live "Today", pace and the alert at the close read too low; closed bars may be corrected later | Buy NASDAQ and NYSE real-time (and ARCA for ETFs) as a non-professional, connect a broker that carries them, or use SL Volume only on closed bars, the next morning |
+| Cboe only | Cboe only | Ratios compare like with like and still work; dollar volume is understated, so SL Risk Desk's "Universe" row can say OUTSIDE wrongly | Same options; until then read "Universe" with that in mind |
+
+## SL Volume
+
+A lower pane. It says how unusual a bar's volume is for this stock, and on a daily chart, while the
+session is open, how fast today's volume is running. It does **not** say anything about direction:
+no volume pattern predicted direction in this research (`RESEARCH_LOG.md`, entries 4 and 10).
+
+| Element | Meaning |
+|---|---|
+| Columns | Volume / typical volume, where typical is the **median** of the previous 50 bars (daily and higher) or of the last 20 sessions' bars at the same clock time (intraday). 1.0 is a typical bar. Solid from 2× (about 1 day in 20 in liquid US stocks). Blue: the close rose; amber: it fell; grey: the bar is still forming |
+| Dot (daily chart, session open) | Today's **pace**: volume so far against the median of the last 20 sessions at the same time of day |
+| E | An earnings report on that bar (after-close reports trade the next day) |
+| Table | Today or this bar: the ratio and the share of the last 250 bars (or of the same hour's bars) it exceeds; pace; "vs market": the stock's ratio divided by SPY's (near 1: the whole market traded heavily; well above 1: the volume is about this stock); earnings |
+
+How far the pace can be trusted (G81, 1-hour data for 2024):
+
+| Read at (ET) | A pace of 2 or more ends at 2 or more / 1.5 or more | Typical error |
+|---|---|---|
+| 10:30 | 4 / 7 times in 10 | 23% |
+| 11:30 | 5 / 8 times in 10 | 17% |
+| 12:30 | 6 / 9 times in 10 | 14% |
+| 14:30 | 7 / 10 times in 10 | 9% |
+
+Use it as a reason to look at a stock, never as a trade signal. The optional pace alert is sent at most
+once a day and only after the first hour. Before trusting any live reading, run the data check above.
+
 ## Scanning a watchlist
 
 The Pine Screener (Products > Screeners > Pine) can run SL Risk Desk over a watchlist. Useful
