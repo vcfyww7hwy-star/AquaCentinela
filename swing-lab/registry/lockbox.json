@@ -44,6 +44,13 @@
       "frozen_rules": [
         "portfolio band, constants in research/confirm/portfolio_band_constants.json"
       ]
+    },
+    {
+      "when_utc": "2026-11-23T21:01:47+00:00",
+      "reason": "G80: data check of an outside review of the Relative Volume pane (post-hoc, pre-registered in RESEARCH_LOG entry 10)",
+      "frozen_rules": [
+        "G80 V1-V4 as written in docs/RESEARCH_LOG.md entry 10"
+      ]
     }
   ]
 }

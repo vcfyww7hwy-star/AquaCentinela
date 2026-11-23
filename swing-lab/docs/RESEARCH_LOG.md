@@ -644,3 +644,46 @@ any result here is post-hoc: it can refute, it cannot demonstrate). Opening reco
 | V4 | Is relative volume a risk input? By rvol bucket at t (<= 0.6, 0.6-1, 1-1.5, 1.5-2, 2-3, > 3): coverage of SL Risk Desk's 90% and 50% bands at h = 10 (close to close; -1.26 / +1.10, -0.40 / +0.47) and the share of 3-ATR stops below the next open hit within 10 bars. In POST, rvol > 2 split by earnings reaction day | rvol becomes a **candidate** risk input if, for rvol > 2, 90% coverage is <= 87% in both samples, or the stop-hit share differs from the sample's unconditional share by >= 4 points with the same sign in both. A candidate needs calibration, freezing and a forward check before it reaches a script |
 
 Trials: about 16 cells for V2, 4 for V3, 36 descriptive cells for V4.
+
+### G80 results (`research/experiments/g80_rvol_review.py`, `research/results/g80_rvol_review.json`)
+
+Returns are basis points from the next open, against the control on the same day (t: Newey-West
+by date). DEV = 2011-01..2018-06; POST = 2018-07..2026-11 (post-hoc).
+
+| | DEV | POST |
+|---|---|---|
+| V1 median rvol (stock-days) | 0.875 (1.74M) | 0.877 (3.24M) |
+| V1 sd of log volume per stock, p10 / p50 / p90 | 0.36 / 0.43 / 0.52 | 0.37 / 0.44 / 0.53 |
+| V1 share of days with rvol >= 2 per stock, p10 / p50 / p90 | 2.6% / 4.0% / 5.7% | 3.0% / 4.3% / 6.0% |
+| A events (per stock-year) | 4,272 (0.62) | 10,414 (0.81) |
+| **V2 A vs same price action without high volume, h = 10** | **+23.6 (t 1.40)** | **+10.0 (t 0.55)** |
+| V2 A vs same price action, h = 5 | +5.0 (t 0.41) | +16.1 (t 1.20) |
+| V2 A vs the E05 control, h = 10 | +25.9 (t 1.53) | +3.3 (t 0.18) |
+| V2 A vs the universe, h = 10 | +22.3 (t 1.40) | +1.8 (t 0.09) |
+| V3 share of A with CLV < 0.5 | 45% | 46% |
+| V3 A with CLV >= 0.5 / CLV < 0.5, vs C_vol, h = 10 | +34.2 (t 1.94) / +27.8 (t 1.32) | +9.0 (t 0.36) / +26.3 (t 1.10) |
+
+V4, by rvol at t: coverage of the 90% band, of the 50% band, and the share of 3-ATR stops hit within
+10 bars (all stock-days: 90.0 / 50.1 / 15.9 on DEV, 89.8 / 50.1 / 15.8 on POST).
+
+| rvol | DEV | POST |
+|---|---|---|
+| <= 0.6 | 90.4 / 50.5 / 15.6 | 91.0 / 51.5 / 14.3 |
+| 0.6-1 | 90.2 / 50.4 / 15.7 | 90.0 / 50.0 / 15.8 |
+| 1-1.5 | 89.5 / 49.5 / 16.4 | 89.1 / 49.5 / 16.4 |
+| 1.5-2 | 89.0 / 49.1 / 16.8 | 88.3 / 49.4 / 17.2 |
+| 2-3 | 89.1 / 49.5 / 16.1 | 88.5 / 50.0 / 16.7 |
+| > 3 | 92.3 / 54.2 / 13.1 | 90.7 / 53.0 / 14.4 |
+| POST: rvol > 2 on an earnings reaction day | | 92.8 / 54.1 / 12.2 |
+| POST: rvol > 2, not earnings | | 88.0 / 49.9 / 17.2 (6.6% below the 5% line) |
+
+**Verdicts by the pre-registered rules**
+
+- V2: **fails** in both samples (t 1.40 and 0.55, rule t >= 2.0 in both). Holding the price action
+  fixed, heavy volume adds nothing detectable. Recommendation: remove "A" from the default display.
+- V3: weak closes are not the bad half (no worse in either sample); a CLV filter is not supported.
+- V4: **not a candidate.** For rvol > 2 the 90% coverage is 90.0% (DEV) and 89.1% (POST), the stop
+  share moves by less than 1 point. ATR(14) already contains the information: the heavy-volume day
+  has a wide range. Descriptive only: on non-earnings days with rvol > 2 the lower tail is a little
+  fatter (6.6% below the 5% line, stops 17.2%); on earnings reaction days the bands are too wide.
+- V1: the review's 0.80-0.90 is right (0.875-0.877): on this pane "1.0" is not a typical day.
