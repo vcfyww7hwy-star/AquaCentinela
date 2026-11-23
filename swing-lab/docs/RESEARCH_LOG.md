@@ -612,3 +612,35 @@ Lesson for the verification ladder: between "compiles" and "runs on a chart" the
 documented-behaviour review, and it found a blocker that both automatic checks had passed.
 Scripts after the review: SL Risk Desk 2.2, SL Portfolio Desk 1.1; both compile with 0 errors and
 0 warnings; parity checks pass.
+
+## 2026-11-23 (UTC) - entry 10: an outside review of the Relative Volume pane, checked against the data (G80)
+
+The owner asked a second AI to review `trend-flow-suite/pine/relative_volume.pine` (that folder is
+not changed by this work). The review made claims that the data here can check. **This plan was
+written and committed before any of the outcomes below was computed.**
+
+A correction first: the prompt written for that review said the absorption mark had been compared
+with a control "not matched on stretch". That was wrong. In E05 (`trend-flow-suite/research/
+experiments/e05_validation_lite.py`, line 314) the control was every bar stretched 1.5 ATR or more
+below its baseline, minus selling climaxes and absorptions. The outside review read it correctly:
+the control matches the stretch, not the flat close, so the test did not isolate volume.
+
+**Definitions** (daily bars, as in the Pine script): rvol = volume / lagged EWMA(50) of volume;
+z = close-to-close log return / sqrt(lagged EWMA(50) of r^2); ext = (close - EMA(EMA(close, 25),
+25)) / ATR(14); A (absorption at lows) = rvol >= 2 and |z| <= 0.5 and ext <= -1.5; CLV = (close -
+low) / (high - low). At least 60 earlier volume bars per stock. Universe: the Study default ($5,
+$20M median dollar volume).
+
+**Samples.** DEV 2011-01..2018-06 (universe biased to names alive in 2018). POST 2018-07-02..
+2026-11-09 (survivorship-free; VAL and the lockbox, both already examined for other questions, so
+any result here is post-hoc: it can refute, it cannot demonstrate). Opening recorded in
+`registry/lockbox.json`.
+
+| ID | Question | Decision rule |
+|---|---|---|
+| V1 | Median rvol over universe stock-days (review: 0.80-0.90 for single stocks; trend-flow-suite E03: 0.996 on its index series); per stock, the sd of log volume around its lagged EWMA and the share of days with rvol >= 2 | Descriptive |
+| V2 | Does volume add anything to absorption? A against C_vol = same price action (ext <= -1.5, \|z\| <= 0.5) with rvol < 2; and A against the E05 control. Return from the next open, h = 5 and 10, against the control on the same day | "A" stays a default mark only if A - C_vol at h = 10 is > 0 with t >= 2.0 in DEV **and** in POST. Otherwise the recommendation is to remove it from the default display |
+| V3 | The "gap-and-crap" case: share of A with CLV < 0.5; A with CLV >= 0.5 and A with CLV < 0.5, each against C_vol | Descriptive; a CLV filter would be a new rule needing its own test |
+| V4 | Is relative volume a risk input? By rvol bucket at t (<= 0.6, 0.6-1, 1-1.5, 1.5-2, 2-3, > 3): coverage of SL Risk Desk's 90% and 50% bands at h = 10 (close to close; -1.26 / +1.10, -0.40 / +0.47) and the share of 3-ATR stops below the next open hit within 10 bars. In POST, rvol > 2 split by earnings reaction day | rvol becomes a **candidate** risk input if, for rvol > 2, 90% coverage is <= 87% in both samples, or the stop-hit share differs from the sample's unconditional share by >= 4 points with the same sign in both. A candidate needs calibration, freezing and a forward check before it reaches a script |
+
+Trials: about 16 cells for V2, 4 for V3, 36 descriptive cells for V4.
