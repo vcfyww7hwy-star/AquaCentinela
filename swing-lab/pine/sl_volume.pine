@@ -232,8 +232,8 @@ if barstate.islast and i_tablePos != "Off"
         r += 1
         if paceUsable and live
             f_row(r, "Pace", na(pace) ? "needs 10 sessions of 5-minute data" : f_x(pace) + " by " + str.format_time(timenow, "HH:mm", syminfo.timezone) + " · " +
-                 str.tostring(100.0 * dayShare, "0") + "% of a day done", na(pace) ? C_MUTED : pace >= i_level ? C_FG : C_MUTED,
-                 "Regular-session volume so far today against the median of the last " + str.tostring(i_paceN) + " sessions at the same time of day. Early in the session the number moves a lot.")
+                 str.tostring(100.0 * dayShare, "0") + "% of a day done" + (paceSlot < 12 ? " · rough in the first hour" : ""), na(pace) ? C_MUTED : pace >= i_level ? C_FG : C_MUTED,
+                 "Regular-session volume so far today against the median of the last " + str.tostring(i_paceN) + " sessions at the same time of day. In 2024 data a pace of 2 or more read at 10:30 ended at 2 or more 4 times in 10; read at 12:30, 6 times in 10 (G81).")
             r += 1
         if i_mktOn and not isIntra and not live
             f_row(r, "vs market", na(ownRatio) ? "-" : f_x(ownRatio) + " · " + syminfo.ticker(i_mkt) + " " + f_x(mktRatio), C_MUTED,

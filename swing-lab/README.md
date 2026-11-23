@@ -19,8 +19,9 @@ Research and TradingView scripts for swing trading US-listed stocks (positions h
    and moving-average exits earn less per day held.
 5. The product is therefore a risk desk, not a signal: `pine/sl_risk_desk.pine` (one stock: size,
    stop, range cone, earnings, index), `pine/sl_portfolio_desk.pine` (the whole book in one table
-   and one alert), and `pine/sl_odds_check.pine`, a strategy that lets the stop-out odds be
-   audited in TradingView's own Strategy Tester.
+   and one alert), `pine/sl_odds_check.pine`, a strategy that lets the stop-out odds be
+   audited in TradingView's own Strategy Tester, and `pine/sl_volume.pine` (volume against the
+   median of earlier bars, and today's pace; descriptive only, entries 10-11 of the research log).
 6. All three compile under TradingView's compiler with 0 errors and 0 warnings; the arithmetic of
    the two indicators equals the research code in a transliteration test; both were read by
    independent reviewers. None has run on a chart: `docs/03_verification.md` says what is still
@@ -45,7 +46,7 @@ Research and TradingView scripts for swing trading US-listed stocks (positions h
 ```
 docs/            protocol, pre-registrations, log, map, playbook, verification; _raw/ holds the source reports
 research/        swinglab/ (package), data_build/, experiments/, confirm/ (the three confirmation runs), results/, tests/
-pine/            sl_risk_desk.pine, sl_portfolio_desk.pine, sl_odds_check.pine
+pine/            sl_risk_desk.pine, sl_portfolio_desk.pine, sl_odds_check.pine, sl_volume.pine
 tools/           pine_compile.py (TradingView compiler), parity_check.py, preview/ (schematic images), pinets_harness/ (not run)
 registry/        trials*.jsonl, lockbox.json
 ```
@@ -54,7 +55,7 @@ registry/        trials*.jsonl, lockbox.json
 
 ```bash
 cd swing-lab
-python tools/pine_compile.py pine/sl_risk_desk.pine pine/sl_portfolio_desk.pine pine/sl_odds_check.pine
+python tools/pine_compile.py pine/sl_risk_desk.pine pine/sl_portfolio_desk.pine pine/sl_odds_check.pine pine/sl_volume.pine
 python tools/parity_check.py self AAPL NVDA GE KO --k 3 --hold 10
 python tools/parity_check.py book AAPL NVDA XOM JPM KO GE --hold 10
 python -m research.tests.test_no_lookahead && python -m research.tests.test_delisting

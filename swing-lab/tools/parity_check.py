@@ -431,15 +431,47 @@ def check_tv_trades(chart_csv: str, trades_csv: str, a) -> bool:
     return len(m) >= 0.9 * min(len(tv), len(mine)) and same_exit >= 0.99 and same_stop >= 0.99
 
 
+def check_tv_volume(path: str, a) -> bool:
+    """SL Volume on a DAILY chart: recompute the typical volume (median of the previous 50 bars), the ratio and
+    ta.percentrank(volume, 250) (share of the previous 250 values at or below the current one) from the export."""
+    d = read_tv_chart(path)
+    step = d["time"].diff().dt.total_seconds().median()
+    if not 80000 <= step <= 90000 * 4:
+        print("  Export a DAILY chart for this check.")
+        return False
+    vname = next((k for k in d.columns if k.lower() == "volume"), None)
+    if vname is None:
+        print("  The export has no Volume column: add the built-in Volume indicator to the chart and export again.")
+        return False
+    v = d[vname].to_numpy(dtype=float)
+    typ = pd.Series(v).rolling(a.nvol, min_periods=a.nvol).median().shift(1).to_numpy()
+    with np.errstate(divide="ignore", invalid="ignore"):
+        ratio = np.where(typ > 0, v / typ, np.nan)
+    rank = np.full(len(v), np.nan)
+    for t in range(a.nrank, len(v)):
+        prev = v[t - a.nrank:t]
+        rank[t] = 100.0 * np.sum(prev <= v[t]) / a.nrank
+    ok = True
+    for name, want in (("Typical volume", typ), ("Ratio to typical", ratio), ("Rank pct", rank)):
+        if name not in d.columns:
+            print(f"    {name:<26s} not in the export (is SL Volume on the chart?)")
+            ok = False
+            continue
+        ok &= compare(name, d[name].to_numpy(dtype=float), want, 1e-6, skip=a.nrank + 1)
+    return ok
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("mode", choices=["constants", "self", "book", "tv-csv", "tv-trades"])
+    ap.add_argument("mode", choices=["constants", "self", "book", "tv-csv", "tv-trades", "tv-volume"])
     ap.add_argument("items", nargs="*")
     ap.add_argument("--k", type=float, default=3.0)
     ap.add_argument("--hold", type=int, default=10, choices=[5, 10, 20])
     ap.add_argument("--equity", type=float, default=100000.0)
     ap.add_argument("--risk", type=float, default=0.75)
     ap.add_argument("--maxpos", type=float, default=20.0)
+    ap.add_argument("--nvol", type=int, default=50)
+    ap.add_argument("--nrank", type=int, default=250)
     a = ap.parse_args()
     if a.mode == "constants":
         ok = check_constants()
@@ -449,6 +481,8 @@ def main() -> int:
         ok = check_constants() and check_book(a.items or ["AAPL", "NVDA", "XOM", "JPM", "KO", "GE"], a)
     elif a.mode == "tv-csv":
         ok = all([check_tv_csv(p, a) for p in a.items])
+    elif a.mode == "tv-volume":
+        ok = all([check_tv_volume(p, a) for p in a.items])
     else:
         ok = check_tv_trades(a.items[0], a.items[1], a)
     print("PARITY", "OK" if ok else "FAILED")
