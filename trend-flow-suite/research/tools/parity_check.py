@@ -19,6 +19,9 @@ Notes
 - `--script trend` takes the long-term trend state from the export itself (dbg_ctx_dir), because the
   higher-timeframe bars are not in the file. Leave "D and B need the market trend not down" off.
 - `--tick` must be the symbol's minimum price step (0.01 for most US stocks).
+- `--script volume` checks Relative Volume v3. It reads the time-of-day slot of every bar from the
+  exported plot dbg_key, so half days and missing bars are handled as the script handled them. The
+  bar in progress at export time is partial: export after the close, or ignore the last row.
 """
 from __future__ import annotations
 
@@ -29,11 +32,12 @@ import numpy as np
 import pandas as pd
 
 from tfs.data import COLS, load_tradingview_export
-from tfs.flow import volume_flow_v2
+from tfs.relvol import relative_volume
 from tfs.trend import TrendParams, trend_setups
 
 SERIES = {
-    "volume": {"dbg_z": "z", "dbg_rvol": "rvol", "dbg_ext": "ext"},
+    "volume": {"Relative volume (×)": "rvol", "Volume z-score (zV)": "zv", "Session pace (×)": "pace",
+               "dbg_z": "z", "dbg_ext": "ext"},
     "trend": {"dbg_ts": "ts", "dbg_dir": "dir", "dbg_dip_z": "dip_z", "dbg_ext": "ext",
               "dbg_last_sh": "last_sh", "dbg_last_sl": "last_sl", "dbg_avwap_low": "avwap_low",
               "dbg_sig": "sig", "dbg_sig_stop": "sig_stop", "dbg_entry": "entry",
@@ -49,7 +53,10 @@ def _find(columns, key: str):
 def compare(tv: pd.DataFrame, script: str, intraday: bool, warmup: int, rtol: float, atol: float,
             tick: float = 0.01) -> tuple[bool, list[dict]]:
     if script == "volume":
-        ours = volume_flow_v2(tv[COLS], intraday=intraday)
+        key_col = _find(tv.columns, "dbg_key")                    # slot keys as the script computed them
+        keys = (pd.to_numeric(tv[key_col], errors="coerce").fillna(0).round().astype("int64").to_numpy()
+                if key_col is not None else None)
+        ours = relative_volume(tv[COLS], intraday=intraday, keys=keys)
     else:
         ctx_col = _find(tv.columns, "dbg_ctx_dir")
         if ctx_col is None:

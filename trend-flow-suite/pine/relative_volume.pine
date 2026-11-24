@@ -1,22 +1,31 @@
 //@version=6
-// Relative Volume — trend-flow-suite (lower pane). Replaces "Volume Flow v2".
-// Tests on about 1.6 million stock-days (docs/06_validation_lite.md) found NO directional information in volume
-// flow, accumulation/distribution, climaxes or divergences, so those are gone. What remains is descriptive:
-//   Columns   volume relative to what is normal for this bar (per time-of-day slot on intraday charts);
-//             1.0 = normal. Colour = direction of the bar's close-to-close move.
-//   Marker A  absorption at lows: heavy volume, a small move, price stretched below its baseline. The one volume
-//             event with consistent, weak support in the tests. A warning for shorts / context for dips, not a signal.
-//   Optional  climax and dry-up marks, for information only.
-// Python twin: research/tfs/flow.py (series rvol, z, ext, absorb_bottom, climax_up, climax_dn, dryup).
-// Personal research tool, not investment advice.
-indicator("Relative Volume", shorttitle = "RVOL", overlay = false, precision = 2)
+// Relative Volume v3 — trend-flow-suite (lower pane)
+// What it is: an honest description of participation. How unusual is this bar's volume for this stock and this
+// time of day, how the session is running so far, and how liquid the stock is. It is NOT a buy or sell signal.
+// Evidence (docs/07_relative_volume_review.md; daily bars, about 8.9 million stock-days, 1999 to 2026, survivors only):
+//   - No volume reading tested predicts direction at swing horizons in 2018-2026.
+//   - "Heavy volume, small move, stretched low" (mark H, formerly A) beat same-day peers by about 0.1 risk units over
+//     10 bars in 2000-2017; in 2018-2026 the difference is +0.03 [-0.01, +0.08] and zero in 2023-2026. Off by default.
+//   - Relative volume adds nothing to ATR for judging the next two weeks' volatility or how often a stop is hit.
+// v3 fixes found by an external review and confirmed by tests: reference in log volume with clipped updates (one
+// extreme day no longer distorts "normal" for weeks), unusual-volume flag as a z-score (comparable across stocks),
+// clipped volatility, time-of-day slots keyed by clock time, warm-up, a live bar shown as provisional, session pace.
+// Python twin: research/tfs/relvol.py (tests: research/tests/test_relvol.py). Personal research tool, not advice.
+indicator("Relative Volume v3", shorttitle = "RVOL3", overlay = false, precision = 2)
 
 // ───── Palette (Okabe-Ito, colour-blind safe) ─────
-color C_UP  = #0072B2
-color C_DN  = #D55E00
-color C_ABS = #009E73
+color C_UP   = #0072B2
+color C_DN   = #D55E00
+color C_MARK = #009E73
+color C_PACE = #E69F00
+color C_LIVE = #999999
 
-// ───── Shared core: twins of research/tfs/core.py (seeded with first value; hold on na) ─────
+float CLIP     = 3.0
+int   MIN_CLIP = 20
+string SC_MULT = "Multiple (×)"
+string SC_LOG  = "Log2 (1× = 0, 2× = +1)"
+
+// ───── Shared core: twins of research/tfs/core.py ─────
 ema1(float x, int n) =>
     float a = 2.0 / (n + 1)
     var float e = na
@@ -32,53 +41,124 @@ rma1(float x, int n) =>
 smooth2(float x, int n) =>
     ema1(ema1(x, n), n)
 
-// Per-slot EWMA returning the slot's value BEFORE this bar (no self-inclusion); updated on closed bars
-slotEwmaLagged(float x, int slot, int span) =>
-    var array<float> st = array.new<float>()
-    while array.size(st) <= slot
-        array.push(st, na)
-    float prev = array.get(st, slot)
-    if barstate.isconfirmed and not na(x)
-        float a = 2.0 / (span + 1)
-        array.set(st, slot, na(prev) ? x : a * x + (1.0 - a) * prev)
-    prev
+// ───── Robust references per time-of-day slot: twins of research/tfs/relvol.py ─────
+// Level mu and spread s of ln(volume) for the slot `key`, as known BEFORE this bar, and the number n of earlier
+// observations. Each observation enters as mu + clip(ln(volume) - mu, ±clip × s). Averages are bias-corrected
+// (weighted sum ÷ sum of weights), so nothing is ever seeded by a single bar. Zero-volume bars are skipped.
+logLevelLagged(float vol, int key, int span, int scaleSpan, float clip, int minClip) =>
+    var map<int, float> mNum  = map.new<int, float>()
+    var map<int, float> mDen  = map.new<int, float>()
+    var map<int, float> mNum2 = map.new<int, float>()
+    var map<int, float> mDen2 = map.new<int, float>()
+    var map<int, int>   mCnt  = map.new<int, int>()
+    int   cnt  = nz(mCnt.get(key), 0)
+    float num  = nz(mNum.get(key))
+    float den  = nz(mDen.get(key))
+    float num2 = nz(mNum2.get(key))
+    float den2 = nz(mDen2.get(key))
+    float mu   = cnt > 0 and den > 0 ? num / den : na
+    float s    = den2 > 0 and num2 > 0 ? math.sqrt(num2 / den2) : na
+    if barstate.isconfirmed and not na(vol) and vol > 0
+        float a  = 2.0 / (span + 1)
+        float b  = 2.0 / (scaleSpan + 1)
+        float lx = math.log(vol)
+        if cnt == 0
+            mNum.put(key, a * lx)
+            mDen.put(key, a)
+            mCnt.put(key, 1)
+        else
+            float e = lx - mu
+            if cnt >= minClip and not na(s) and s > 0
+                e := math.max(-clip * s, math.min(clip * s, e))
+            mNum.put(key, (1.0 - a) * num + a * (mu + e))
+            mDen.put(key, (1.0 - a) * den + a)
+            mNum2.put(key, (1.0 - b) * num2 + b * e * e)
+            mDen2.put(key, (1.0 - b) * den2 + b)
+            mCnt.put(key, cnt + 1)
+    [mu, s, cnt]
+
+// Clipped, bias-corrected average of squared returns for the slot, as known BEFORE this bar, and its count.
+varLagged(float ret, int key, int span, float clip, int minClip) =>
+    var map<int, float> mNum = map.new<int, float>()
+    var map<int, float> mDen = map.new<int, float>()
+    var map<int, int>   mCnt = map.new<int, int>()
+    int   cnt = nz(mCnt.get(key), 0)
+    float num = nz(mNum.get(key))
+    float den = nz(mDen.get(key))
+    float v   = cnt > 0 and den > 0 ? num / den : na
+    if barstate.isconfirmed and not na(ret)
+        float a  = 2.0 / (span + 1)
+        float x2 = ret * ret
+        if cnt >= minClip and not na(v) and v > 0
+            x2 := math.min(x2, clip * clip * v)
+        mNum.put(key, (1.0 - a) * num + a * x2)
+        mDen.put(key, (1.0 - a) * den + a)
+        mCnt.put(key, cnt + 1)
+    [v, cnt]
+
+// Linear interpolation in an array sampled every 30 minutes
+interp30(array<float> arr, float minutes) =>
+    float x = minutes / 30.0
+    int   i = math.max(0, math.min(arr.size() - 2, int(math.floor(x))))
+    float w = math.max(0.0, math.min(1.0, x - i))
+    arr.get(i) * (1.0 - w) + arr.get(i + 1) * w
 
 // ───── Inputs ─────
 string G_N = "Normal volume"
-int    normIntra = input.int(20, "Intraday: sessions per time-of-day slot", minval = 2, group = G_N)
-int    normDaily = input.int(50, "Daily and higher: bars", minval = 2, group = G_N)
-float  hiLevel   = input.float(2.0, "Mark level: unusual volume at ×", minval = 1.0, step = 0.5, group = G_N)
+int    spanIntra = input.int(20, "Intraday: sessions per time-of-day slot", minval = 5, group = G_N)
+int    spanDaily = input.int(50, "Daily and higher: bars", minval = 10, group = G_N)
+int    scaleSpan = input.int(100, "Spread of log volume: observations", minval = 20, group = G_N,
+     tooltip = "How many earlier bars of the same slot define this stock's usual spread of volume. Tested value: 100.")
+float  flagZ     = input.float(2.0, "Unusual volume at zV ≥", minval = 1.0, step = 0.25, group = G_N,
+     tooltip = "zV = (ln volume − its normal) ÷ its usual spread. zV ≥ 2 was about the busiest 4% of daily bars for every kind of stock tested; a fixed multiple such as 2× was 3% of days for the steadiest stocks and 7% for erratic ones.")
+float  extremeZ  = input.float(3.0, "Extreme volume at zV ≥", minval = 1.5, step = 0.25, group = G_N,
+     tooltip = "About 1% of daily bars.")
 
-string G_EV = "Events"
-bool   showAbs   = input.bool(true, "A — absorption at lows", group = G_EV)
-float  absRvol   = input.float(2.0, "Absorption: relative volume ≥", group = G_EV)
-float  absZ      = input.float(0.5, "Absorption: |move| ≤ (σ)", group = G_EV)
-float  absExt    = input.float(1.5, "Absorption: stretched below the baseline by ≥ (ATR)", group = G_EV)
-bool   showClim  = input.bool(false, "Climax marks (no predictive value in tests)", group = G_EV)
-float  climRvol  = input.float(3.0, "Climax: relative volume ≥", group = G_EV)
-float  climZ     = input.float(2.0, "Climax: |move| ≥ (σ)", group = G_EV)
-float  climExt   = input.float(2.5, "Climax: |extension| ≥ (ATR)", group = G_EV)
-bool   showDry   = input.bool(false, "Dry-up marks", group = G_EV)
-float  dryRvol   = input.float(0.6, "Dry-up: relative volume ≤", group = G_EV)
-int    extWin    = input.int(50, "Baseline window (SMA-equivalent bars)", minval = 3, group = G_EV)
-int    atrLen    = input.int(14, "ATR length", minval = 1, group = G_EV)
-bool   showTable = input.bool(true, "Show status table", group = "Display")
+string G_M = "Marks (context, not signals)"
+bool   showH     = input.bool(false, "H — heavy volume, small move, stretched low", group = G_M,
+     tooltip = "Formerly 'A, absorption at lows'. Against bars with the same price action and ordinary volume it gained about 0.1 risk units over 10 bars in 2000–2017 (about +0.7% versus same-day peers). In 2018–2026 the difference is +0.03 with an interval that includes zero, and nil in 2023–2026. Off by default.")
+float  hMove     = input.float(0.5, "H: |move| ≤ (σ)", minval = 0.1, step = 0.1, group = G_M)
+float  hExt      = input.float(1.5, "H: stretched below the baseline by ≥ (ATR)", minval = 0.5, step = 0.25, group = G_M)
+bool   showQuiet = input.bool(false, "Quiet bars (zV ≤ −2)", group = G_M)
+int    extWin    = input.int(50, "Baseline window (SMA-equivalent bars)", minval = 3, group = G_M)
+int    atrLen    = input.int(14, "ATR length", minval = 1, group = G_M)
+
+string G_D = "Display"
+string scaleIn   = input.string(SC_MULT, "Column scale", options = [SC_MULT, SC_LOG], group = G_D)
+float  capX      = input.float(6.0, "Multiple scale: cap columns at ×", minval = 2.0, step = 1.0, group = G_D,
+     tooltip = "Columns above the cap are drawn at the cap with a small triangle; the status table and the data window show the true value.")
+bool   showLevel = input.bool(true, "Show the unusual-volume level for this stock", group = G_D)
+bool   showPace  = input.bool(true, "Intraday charts: show the session pace line", group = G_D,
+     tooltip = "Volume of the session so far ÷ what is normal by this time of day. Near the close it equals the day's relative volume.")
+float  paceAlert = input.float(2.0, "Alert when session pace reaches ×", minval = 1.1, step = 0.25, group = G_D)
+bool   showTable = input.bool(true, "Show status table", group = G_D)
 
 // ───── Data guard ─────
-float cumVol = ta.cum(nz(volume))
-if barstate.islast and cumVol == 0
+float cumAll = ta.cum(nz(volume))
+if barstate.islast and cumAll == 0
     runtime.error("This symbol has no volume data. Use a symbol with volume (e.g. SPY instead of the SPX index).")
 
-// ───── Normal volume and volatility: time-of-day slots intraday, one slot on D/W/M ─────
-var int slotCount = -1
-slotCount := session.isfirstbar ? 0 : slotCount + 1
-int   slot  = timeframe.isintraday ? slotCount : 0
-int   span  = timeframe.isintraday ? normIntra : normDaily
-float r     = math.log(close / close[1])
-float sigma = math.sqrt(slotEwmaLagged(r * r, slot, span))
-float z     = sigma > 0 ? r / sigma : na
-float ev    = slotEwmaLagged(volume, slot, span)
-float rvol  = ev > 0 ? volume / ev : na
+// ───── Time-of-day slot: clock time of the bar's open (exchange time) and the bar's length ─────
+// A half-day's short closing bar gets its own slot instead of polluting the normal one. On daily and higher
+// timeframes, and on second-based or non-standard charts, there is a single slot.
+bool todOK   = timeframe.isminutes and chart.is_standard
+int  lenMin  = int(math.round((time_close - time) / 60000.0))
+int  slotKey = todOK ? (hour(time) * 60 + minute(time)) * 10000 + nz(lenMin, 0) : 0
+int  span    = todOK ? spanIntra : spanDaily
+int  minObs  = todOK ? 10 : 25
+
+// ───── Relative volume, its z-score, and the bar's move in σ ─────
+float r = close > 0 and close[1] > 0 ? math.log(close / close[1]) : na
+[mu, s, n] = logLevelLagged(volume, slotKey, span, scaleSpan, CLIP, MIN_CLIP)
+bool  ready  = n >= minObs and not na(mu)
+bool  hasS   = ready and not na(s) and s > 0
+float normal = ready ? math.exp(mu) : na
+float rvol   = ready ? (volume > 0 ? volume / normal : 0.0) : na
+float zv     = hasS and volume > 0 ? (math.log(volume) - mu) / s : na
+float level  = hasS ? math.exp(flagZ * s) : na
+[varR, nR] = varLagged(r, slotKey, span, CLIP, MIN_CLIP)
+float sigma  = nR >= minObs and not na(varR) and varR > 0 ? math.sqrt(varR) : na
+float z      = r / sigma
 
 // ───── Price context: extension from a two-pole baseline, in ATR units ─────
 float tr   = na(close[1]) ? high - low : math.max(high - low, math.abs(high - close[1]), math.abs(low - close[1]))
@@ -86,42 +166,108 @@ float atr  = rma1(tr, atrLen)
 float base = smooth2(close, math.floor((extWin + 1) / 2.0))
 float ext  = atr > 0 ? (close - base) / atr : na
 
-// ───── Events ─────
-bool conf   = barstate.isconfirmed
-bool absBot = rvol >= absRvol and math.abs(z) <= absZ and ext <= -absExt
-bool climUp = rvol >= climRvol and z >= climZ and ext >= climExt
-bool climDn = rvol >= climRvol and z <= -climZ and ext <= -climExt
-bool dryUp  = rvol <= dryRvol
+// ───── Session pace on intraday charts: volume so far ÷ normal volume by this time of day ─────
+var float cumVol = 0.0
+cumVol := session.isfirstbar ? nz(volume) : cumVol + nz(volume)
+[muC, sC, nC] = logLevelLagged(todOK ? cumVol : na, slotKey, spanIntra, scaleSpan, CLIP, MIN_CLIP)
+float pace = todOK and nC >= minObs and not na(muC) and cumVol > 0 ? cumVol / math.exp(muC) : na
+
+// ───── Daily chart, bar in progress: rough projection of the day from the volume so far ─────
+// Median share of a day's volume traded after m minutes of a 390-minute US session, and the spread (sd of ln) of
+// that share, every 30 minutes (858 liquid US stocks, 49 sessions, Sep–Nov 2026; research E19).
+var array<float> SHARE    = array.from(0.0, 0.088, 0.161, 0.229, 0.296, 0.355, 0.414, 0.469, 0.524, 0.582, 0.643, 0.708, 0.786, 1.0)
+var array<float> SHARE_SD = array.from(0.80, 0.63, 0.50, 0.44, 0.39, 0.35, 0.32, 0.29, 0.26, 0.23, 0.20, 0.165, 0.12, 0.0)
+bool  live     = barstate.islast and not barstate.isconfirmed
+float sessMin  = (time_close - time) / 60000.0
+float elMin    = (timenow - time) / 60000.0
+bool  canEst   = live and timeframe.isdaily and timeframe.multiplier == 1 and ready and math.abs(sessMin - 390.0) < 1.0 and elMin >= 15.0 and elMin <= 390.0
+float shareNow = canEst ? interp30(SHARE, elMin) : na
+float estSd    = canEst ? interp30(SHARE_SD, elMin) : na
+float estRvol  = canEst and shareNow > 0 ? rvol / shareNow : na
+
+// ───── Liquidity and a self-check of the data feed (one request) ─────
+[advD, volDprev] = request.security(syminfo.tickerid, "D", [ta.sma(close * volume, 20)[1], volume[1]], lookahead = barmerge.lookahead_on)
+float advSelf = ta.sma(close * volume, 20)[1]
+float adv     = timeframe.isintraday ? advD : timeframe.isdaily ? advSelf : na
+// On intraday charts: volume of the previous session summed from the chart's bars ÷ the previous daily bar.
+// Near 1 is consistent; far below 1 means the intraday bars carry only part of the market's volume.
+var float feedRatio = na
+if todOK and session.isfirstbar and volDprev > 0 and cumVol[1] > 0
+    feedRatio := cumVol[1] / volDprev
+string pfx     = syminfo.prefix
+bool   altFeed = str.contains(pfx, "BATS") or str.contains(pfx, "CBOE")
+bool   delayed = str.endswith(pfx, "_DL") or str.endswith(pfx, "_DLY")
+
+// ───── Events (confirmed bars only) ─────
+bool conf    = barstate.isconfirmed
+bool unusual = zv >= flagZ
+bool extreme = zv >= extremeZ
+bool quiet   = zv <= -2.0
+bool hMark   = unusual and math.abs(z) <= hMove and ext <= -hExt
+
+var int    lastUnBar = na
+var string lastUn    = "—"
+if conf and unusual
+    lastUnBar := bar_index
+    lastUn    := str.format_time(time, timeframe.isintraday ? "yyyy-MM-dd HH:mm" : "yyyy-MM-dd", syminfo.timezone)
+int barsSinceUnusual = bar_index - lastUnBar
 
 // ───── Plots ─────
-color colCol = r >= 0 ? color.new(C_UP, rvol >= hiLevel ? 0 : 45) : color.new(C_DN, rvol >= hiLevel ? 0 : 45)
-plot(rvol, "Relative volume", color = colCol, style = plot.style_columns)
-hline(1.0, "Normal", color = color.new(color.gray, 30), linestyle = hline.style_solid)
-hline(hiLevel, "Unusual volume level", color = color.new(color.gray, 60), linestyle = hline.style_dotted)
+bool  logScale = scaleIn == SC_LOG
+float LN2      = math.log(2.0)
+float colVal   = logScale ? (rvol > 0 ? math.log(rvol) / LN2 : na) : math.min(rvol, capX)
+float lvlVal   = logScale ? math.log(level) / LN2 : math.min(level, capX)
+float paceVal  = logScale ? (pace > 0 ? math.log(pace) / LN2 : na) : math.min(pace, capX)
+color dirCol   = na(r) or r >= 0 ? C_UP : C_DN
+color colCol   = live ? color.new(C_LIVE, 40) : color.new(dirCol, extreme ? 0 : unusual ? 25 : 65)
+plot(colVal, "Relative volume", color = colCol, style = plot.style_columns)
+plot(showLevel ? lvlVal : na, "Unusual level for this stock", color = color.new(color.gray, 35), style = plot.style_stepline)
+plot(showPace and todOK ? paceVal : na, "Session pace", color = C_PACE, linewidth = 2, style = plot.style_stepline)
+hline(logScale ? 0.0 : 1.0, "Normal", color = color.new(color.gray, 30), linestyle = hline.style_solid)
 
-plotshape(showAbs and absBot and conf, title = "Absorption at lows", style = shape.labelup, location = location.bottom, color = C_ABS, text = "A", textcolor = color.white, size = size.tiny)
-plotshape(showClim and climUp and conf, title = "Buying climax", style = shape.xcross, location = location.top, color = C_DN, size = size.tiny)
-plotshape(showClim and climDn and conf, title = "Selling climax", style = shape.xcross, location = location.top, color = C_UP, size = size.tiny)
-plotshape(showDry and dryUp and conf, title = "Dry-up", style = shape.circle, location = location.bottom, color = color.new(color.gray, 40), size = size.tiny)
+plotshape(not logScale and rvol > capX, title = "Above the cap", style = shape.triangleup, location = location.top, color = dirCol, size = size.tiny)
+plotshape(showH and hMark and conf, title = "Heavy volume, small move, stretched low", style = shape.labelup, location = location.bottom, color = C_MARK, text = "H", textcolor = color.white, size = size.tiny)
+plotshape(showQuiet and quiet and conf, title = "Quiet bar", style = shape.circle, location = location.bottom, color = color.new(color.gray, 40), size = size.tiny)
 
-// Diagnostic series for Pine ↔ Python parity checks (data window and chart export only)
+// Numeric series for the data window, the Pine Screener and the Pine ↔ Python parity check
+plot(rvol, "Relative volume (×)", display = display.data_window)
+plot(zv, "Volume z-score (zV)", display = display.data_window)
+plot(pace, "Session pace (×)", display = display.data_window)
+plot(estRvol, "Day pace estimate (×)", display = display.data_window)
+plot(barsSinceUnusual, "Bars since unusual volume", display = display.data_window)
+plot(adv, "Dollar volume, 20-day average", display = display.data_window)
 plot(z, "dbg_z", display = display.data_window)
-plot(rvol, "dbg_rvol", display = display.data_window)
 plot(ext, "dbg_ext", display = display.data_window)
+plot(slotKey, "dbg_key", display = display.data_window)
 
 // ───── Status table ─────
-var string lastAbs = "—"
-if conf and absBot
-    lastAbs := str.format_time(time, "yyyy-MM-dd", syminfo.timezone)
-var table tbl = table.new(position.top_right, 2, 3, bgcolor = color.new(color.black, 85), border_width = 1)
+var table tbl = table.new(position.top_right, 2, 7, bgcolor = color.new(color.black, 85), border_width = 1)
 if showTable and barstate.islast
+    string rvTxt   = na(rvol) ? "warming up" : live ? str.tostring(rvol, "0.00") + "× so far (bar in progress)" : str.tostring(rvol, "0.00") + "×" + (na(zv) ? "" : "   zV " + str.tostring(zv, "0.0"))
+    string lvlTxt  = na(level) ? "—" : "≥ " + str.tostring(level, "0.0") + "×" + (todOK ? " at this time of day" : " for this stock")
+    string paceLbl = todOK ? "Session pace" : "Today's pace (estimate)"
+    string paceTxt = todOK ? (na(pace) ? "—" : str.tostring(pace, "0.00") + "× of normal by this time") : na(estRvol) ? "—" : "≈ " + str.tostring(estRvol, "0.0") + "×  (likely " + str.tostring(estRvol * math.exp(-estSd), "0.0") + "–" + str.tostring(estRvol * math.exp(estSd), "0.0") + "×)"
+    string advTxt  = na(adv) ? "—" : adv >= 1e9 ? str.tostring(adv / 1e9, "0.00") + " bn" : str.tostring(adv / 1e6, "0.0") + " M"
+    string unTxt   = na(lastUnBar) ? "—" : lastUn + "  (" + str.tostring(barsSinceUnusual) + " bars ago)"
+    string feedTxt = pfx + (delayed ? " · delayed" : "") + (altFeed ? " · partial feed?" : "") + (na(feedRatio) ? "" : " · intraday ÷ daily " + str.tostring(feedRatio, "0.00"))
+    bool   feedBad = altFeed or delayed or feedRatio < 0.5
     table.cell(tbl, 0, 0, "Relative volume", text_color = color.gray, text_size = size.small)
-    table.cell(tbl, 1, 0, str.tostring(rvol, "0.00") + "×", text_color = rvol >= hiLevel ? color.white : color.silver, text_size = size.small)
-    table.cell(tbl, 0, 1, "Bar move", text_color = color.gray, text_size = size.small)
-    table.cell(tbl, 1, 1, str.tostring(z, "0.0") + " σ", text_color = color.silver, text_size = size.small)
-    table.cell(tbl, 0, 2, "Last absorption at lows", text_color = color.gray, text_size = size.small)
-    table.cell(tbl, 1, 2, lastAbs, text_color = color.silver, text_size = size.small)
+    table.cell(tbl, 1, 0, rvTxt, text_color = live ? color.silver : unusual ? color.white : color.silver, text_size = size.small)
+    table.cell(tbl, 0, 1, "Unusual from", text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 1, 1, lvlTxt, text_color = color.silver, text_size = size.small)
+    table.cell(tbl, 0, 2, paceLbl, text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 1, 2, paceTxt, text_color = color.silver, text_size = size.small)
+    table.cell(tbl, 0, 3, "Bar move", text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 1, 3, na(z) ? "—" : str.tostring(z, "0.0") + " σ", text_color = color.silver, text_size = size.small)
+    table.cell(tbl, 0, 4, "Dollar volume, 20-day avg", text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 1, 4, advTxt, text_color = color.silver, text_size = size.small)
+    table.cell(tbl, 0, 5, "Last unusual volume", text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 1, 5, unTxt, text_color = color.silver, text_size = size.small)
+    table.cell(tbl, 0, 6, "Data feed", text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 1, 6, feedTxt, text_color = feedBad ? C_DN : color.silver, text_size = size.small)
 
 // ───── Alerts (fire once, at bar close) ─────
-alertcondition(absBot and conf, "RVOL absorption at lows", "Absorption at lows on {{ticker}} ({{interval}}) at {{close}}")
-alertcondition(rvol >= hiLevel and conf, "RVOL unusual volume", "Unusual volume on {{ticker}} ({{interval}}) at {{close}}")
+alertcondition(unusual and conf, "RVOL3 unusual volume", "Unusual volume on {{ticker}} ({{interval}}), bar closed at {{close}}")
+alertcondition(extreme and conf, "RVOL3 extreme volume", "Extreme volume on {{ticker}} ({{interval}}), bar closed at {{close}}")
+alertcondition(todOK and conf and pace >= paceAlert and pace[1] < paceAlert, "RVOL3 session pace reached the alert level", "Session volume pace reached the alert level on {{ticker}} ({{interval}})")
+alertcondition(hMark and conf, "RVOL3 heavy volume, small move, stretched low", "Heavy volume with a small move at a stretched low on {{ticker}} ({{interval}}) at {{close}}")

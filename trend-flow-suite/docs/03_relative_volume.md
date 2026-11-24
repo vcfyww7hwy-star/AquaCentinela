@@ -1,43 +1,71 @@
-# Relative Volume pane: specification and evidence
+# Relative Volume v3: specification
 
-- **Script:** `pine/relative_volume.pine` (lower pane). It replaces "Volume Flow v2".
-- **Python twin:** `research/tfs/flow.py` (series `rvol`, `z`, `ext`, `absorb_bottom`, `climax_up`, `climax_dn`, `dryup`).
-- **Status:** rebuilt 10 Nov 2026 after the tests in `06_validation_lite.md`. Not yet compiled in TradingView.
+- **Script:** `pine/relative_volume.pine` (lower pane; title "Relative Volume v3", short title RVOL3).
+- **Python twin:** `research/tfs/relvol.py`. Tests: `research/tests/test_relvol.py`.
+- **Why it changed, and the evidence:** `07_relative_volume_review.md`.
+- **Status:** rewritten 24 Nov 2026 after an external review. It passes a syntax parse and a line-by-line
+  review. **It has not been compiled in TradingView.**
 
-## Why it shrank
+## 1. What the pane is for
 
-Volume Flow v2 showed flow lines, an accumulation / distribution tint, climax, absorption and
-divergence marks. Tested on about 1.6 million stock-days (E05, E08):
+It describes participation: how unusual this bar's volume is for this stock at this time of day, how
+the session is running so far, and how liquid the stock is. It gives no buy or sell signal. On about
+8.9 million stock-days (1999–2026) no volume reading predicted direction at swing horizons in
+2018–2026, and relative volume added nothing to ATR for judging the next two weeks' volatility.
 
-| Signal | 10-bar forward return vs control (risk units), sets A / B / DJ / LH |
+## 2. Definitions
+
+Every reference value uses **earlier bars of the same slot only** and is updated on closed bars.
+
+| Term | Definition |
 |---|---|
-| Accumulation state (asymmetry ≥ +2σ), predicted positive | −0.06 / −0.02 / −0.02 / −0.03 |
-| Distribution state (asymmetry ≤ −2σ), predicted negative | +0.08 / +0.05 / +0.08 / +0.02 |
-| Buying climax, predicted negative | +0.01 / −0.09 / +0.02 / +0.01 |
-| Bearish divergence, predicted negative | +0.01 / +0.01 / −0.05 / −0.02 |
-| Bullish divergence, predicted positive | +0.07 / +0.03 / −0.02 / −0.11 |
-| **Absorption at lows**, predicted positive | **+0.22** / +0.13 / +0.02 / +0.02 (market-adjusted on LH: +0.09, significant) |
+| Slot | Intraday charts: the clock time of the bar's open (exchange time) together with the bar's length, so a short half-day bar never mixes with a full bar. Daily and higher, second-based and non-standard charts: one slot |
+| Normal volume | exp(μ). μ is an exponentially weighted average of ln(volume): span 20 sessions per slot intraday, 50 bars on daily and higher. Each observation enters as μ + clip(ln(volume) − μ, ±3s). Zero-volume bars are skipped |
+| Spread s | Square root of the same kind of average (span 100) of the clipped squared innovations |
+| Relative volume | volume ÷ normal volume |
+| zV | (ln(volume) − μ) ÷ s |
+| Unusual / extreme | zV ≥ 2 / zV ≥ 3: about the busiest 4% / 1% of daily bars, for steady and erratic stocks alike |
+| σ and bar move z | σ² is a clipped average of squared close-to-close returns (same slot and span; each squared return capped at 9σ²). z = return ÷ σ |
+| Extension | (close − two-pole baseline equivalent to a 50-bar SMA) ÷ ATR(14) |
+| Session pace | Intraday charts: volume of the session so far ÷ what is normal by this time of day (same robust reference, applied to cumulative volume). At the last bar it equals the day's relative volume |
+| Day pace estimate | Daily chart, bar in progress: volume so far ÷ normal ÷ the usual share of a day's volume traded by this minute. Shown with a "likely" range. US 390-minute sessions only |
+| Warm-up | Nothing is shown for a slot until it has 10 earlier observations (intraday) or 25 (daily and higher). Averages are bias-corrected, so no value is ever seeded by a single bar |
 
-Only the first figure in the last row is significant on its own, and with about 30 comparisons one
-such pass is what chance would give. Its sign is at least consistent across all four sets. Nothing
-else carries directional information, and several signals point the wrong way.
+## 3. What is drawn
 
-The flow lines were also about 80% correlated with plain price momentum (E03), so they repeated what
-the trend overlay already measures.
+| Element | Meaning |
+|---|---|
+| Columns | Relative volume. Colour = direction of the close-to-close move; faint = ordinary, stronger = unusual, solid = extreme. Grey = bar in progress (partial volume, not comparable yet) |
+| Grey step line | The level from which volume counts as unusual for this stock (and this time of day) |
+| Orange step line | Session pace (intraday charts) |
+| Tinted background | Quarterly option-expiry day (third Friday of March, June, September, December): heavy volume is mostly mechanical |
+| **H** (off by default) | Heavy volume, small move, stretched low: zV ≥ 2, \|z\| ≤ 0.5, extension ≤ −1.5 ATR. Context only; see the evidence |
+| Status table | Relative volume and zV; the unusual level; session pace or day estimate; bar move; 20-day dollar volume; last unusual bar; data feed check |
 
-## What the pane shows
+Column scale: multiples of normal, capped at 6× by default (a small triangle marks capped bars), or
+log2 (1× = 0, 2× = +1).
 
-| Element | Definition | Use |
-|---|---|---|
-| Columns | Volume ÷ normal volume for this bar. Normal = EWMA of previous bars in the same time-of-day slot (20 sessions) on intraday charts; EWMA of the previous 50 bars on daily and higher | Descriptive: how unusual is today's participation? 1.0 is normal |
-| Column colour | Direction of the close-to-close move; solid when volume is at least 2× normal | — |
-| **A** | Absorption at lows: relative volume ≥ 2, move within ±0.5σ, price ≥ 1.5 ATR below its baseline | Weak support only. Context for a dip; a caution for shorts |
-| Optional marks | Climax (volume ≥ 3×, move ≥ 2σ, extension ≥ 2.5 ATR) and dry-up (volume ≤ 0.6×) | Information only; no predictive value found |
+## 4. Data feed check
 
-The time-of-day normalisation is verified on synthetic intraday data only (unit test); no real
-intraday data was available.
+TradingView's default US feed without paid exchange data is Cboe (about 9–10% of consolidated
+volume). Whether the live bars and the intraday history it shows are partial is undocumented. The
+status table therefore shows the symbol's feed prefix and, on intraday charts, the previous session's
+volume summed from the chart's bars ÷ the previous daily bar. Near 1 is consistent; far below 1 means
+the intraday bars carry only part of the market's volume. The manual checks are in the playbook.
 
-## Verifying TradingView against Python
+## 5. Limits
 
-Export the chart data with the pane on the chart, then run from `research/`:
-`python3 -m tools.parity_check export.csv --script volume [--intraday]`.
+- **Not compiled.** Verify in the Pine Editor first.
+- Everything tested is daily bars of US stocks still listed today. The intraday logic was checked on
+  49 real sessions (Aug–Nov 2026) only.
+- The day pace estimate is rough before midday: the "likely" range at 10:30 is about ±65%.
+- Regular trading hours are assumed. With extended hours the slots still work, but readings are not
+  comparable with regular-hours charts.
+- For about 30 bars after a day of 5× volume or more the unusual flag is less sensitive.
+- The Trend & Setups overlay still uses the v2 volume reference for its optional breakout setup.
+
+## 6. Verifying TradingView against Python
+
+Export the chart data with the pane on the chart (after the close, so that no bar is partial), then
+run from `research/`: `python3 -m tools.parity_check export.csv --script volume [--intraday]`.
+The tool reads each bar's slot from the exported plot `dbg_key`.

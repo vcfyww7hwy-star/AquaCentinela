@@ -199,7 +199,8 @@ def test_parity_tool_passes_on_identical_values_and_flags_a_perturbation(script)
     df = synthetic_daily(n=1500, seed=9)
     tv = df.copy()
     if script == "volume":
-        ours, name, key = volume_flow_v2(df), "Relative Volume", "dbg_rvol"
+        from tfs.relvol import relative_volume
+        ours, name, key = relative_volume(df), "Relative Volume v3", "Relative volume (×)"
     else:
         ctx = weekly_context_dir(df)
         ours, _ = trend_setups(df, p=TrendParams(tick=0.01), htf_dir=ctx)
