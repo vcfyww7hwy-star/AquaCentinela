@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """E19 - First checks of the pane on REAL intraday data (earlier work had synthetic intraday only).
 
-Data: 5-minute bars built from public 1-minute Yahoo bars (GitHub, MapleFrogStudio DATA-2026-09,
--10, -11): NYSE, NASDAQ and AMEX tickers, regular session, 31 Aug - 6 Nov 2026 (about 48 sessions).
-Short history and one source: treat every number as a first reading, not as validation.
+Data: 5-minute bars built from public 1-minute Yahoo bars (GitHub, MapleFrogStudio DATA-YYYY-MM):
+NYSE, NASDAQ and AMEX tickers, regular session. First run (23 Nov 2026): 31 Aug - 6 Nov 2026, 49
+sessions. Re-run on 24 Nov 2026 on the cleaned sample of experiments/intraday_common.py (29 Aug 2025
+- 5 Oct 2026), after E26 found corrupted volume prints in the source; the first run's flag rates
+and day-estimate constants were affected. One source: a first reading, not validation.
 
 Questions
   Q1  Is the intraday volume consolidated (sum of the day against an independent daily file)?
@@ -32,6 +34,7 @@ import json
 import numpy as np
 import pandas as pd
 
+from experiments.intraday_common import load_clean
 from tfs.relvol import RelVolParams, log_level_lagged, relative_volume
 
 CHECKS = [("10:00", 30), ("10:30", 60), ("11:30", 120), ("13:00", 210), ("14:30", 300), ("15:30", 360)]
@@ -49,28 +52,20 @@ def main():
     ap.add_argument("--bars", required=True)
     ap.add_argument("--daily", required=True)
     a = ap.parse_args()
-    b = pd.concat([pd.read_parquet(f, columns=["ticker", "ts", "open", "high", "low", "close", "volume"])
-                   for f in sorted(glob.glob(str(pathlib.Path(a.bars) / "bars5m_*.parquet")))], ignore_index=True)
-    b["ticker"] = b["ticker"].astype(str)
-    b["day"] = b["ts"].dt.normalize()
-    b["mins"] = (b["ts"].dt.hour * 60 + b["ts"].dt.minute) - 570              # minutes after 09:30
-    b = b[(b["mins"] >= 0) & (b["mins"] < 390)]
+    b, dly_all, clean = load_clean(a.bars, a.daily)
     out = {"source_rows_5m": int(len(b)), "sessions": int(b["day"].nunique()),
-           "first": str(b["day"].min())[:10], "last": str(b["day"].max())[:10]}
+           "first": str(b["day"].min())[:10], "last": str(b["day"].max())[:10], "cleaning": clean}
 
     # universe: liquid, nearly complete days
     g = b.groupby(["ticker", "day"]).agg(n=("volume", "size"), vol=("volume", "sum"), px=("close", "last"))
     g["dv"] = g["vol"] * g["px"]
     t = g.groupby("ticker").agg(days=("n", "size"), full=("n", lambda x: (x >= 70).mean()), px=("px", "median"), dv=("dv", "median"))
-    keep = t[(t["days"] >= 40) & (t["full"] >= 0.9) & (t["px"] >= 5) & (t["dv"] >= 5e6)].index
+    keep = t[(t["days"] >= 0.75 * out["sessions"]) & (t["full"] >= 0.9) & (t["px"] >= 5) & (t["dv"] >= 5e6)].index
     b = b[b["ticker"].isin(keep)].copy()
     out["universe"] = {"tickers": int(len(keep)), "median_dollar_volume_musd": round(float(t.loc[keep, "dv"].median() / 1e6), 1)}
 
     # Q1 consolidated?
-    dly = pd.read_parquet(a.daily, columns=["ticker", "date", "volume"])
-    dly["ticker"] = dly["ticker"].astype(str)
-    dsum = b.groupby(["ticker", "day"])["volume"].sum().rename("iv").reset_index().merge(
-        dly.rename(columns={"date": "day", "volume": "dvol"}), on=["ticker", "day"])
+    dsum = b.groupby(["ticker", "day"])["volume"].sum().rename("iv").reset_index().merge(dly_all, on=["ticker", "day"])
     ratio = (dsum["iv"] / dsum["dvol"].replace(0, np.nan)).dropna()
     out["Q1_intraday_sum_over_daily_volume"] = {"n": int(len(ratio)), "p05": round(float(ratio.quantile(.05)), 3),
                                                "median": round(float(ratio.median()), 3), "p95": round(float(ratio.quantile(.95)), 3)}

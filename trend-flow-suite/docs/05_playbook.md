@@ -8,7 +8,7 @@ on every trade. Trade small, and keep records.
 ## Chart set-up (once)
 
 1. Use a US stock or ETF chart with regular trading hours only (extended hours off).
-2. Add **Trend & Setups v2** (on the price chart) and **Relative Volume v3** (pane). When you paste a
+2. Add **Trend & Setups v2** (on the price chart) and **Relative Volume v4** (pane). When you paste a
    script into a new Pine Editor tab, select all and delete TradingView's starter template first;
    otherwise you get error CE10243 (two declaration statements).
 3. In Trend & Setups v2 → Risk and exits, set **Account size** and **Risk per trade (%)**. Start
@@ -36,24 +36,53 @@ same logic runs, but nothing there is validated.
 | "If I buy this close" | Stop (2 ATR) and size for an entry on the current bar | Use it for entries you choose yourself |
 | Relative Volume columns | This bar's volume ÷ normal for this stock and time of day. Stronger colour = unusual for this stock (about the busiest 4% of bars); grey = bar in progress | Context only. It does not predict direction |
 | Orange line (intraday) | Session pace: volume so far ÷ normal by this time of day | How the day is running. Near the close it equals the day's relative volume |
-| Tinted background in the volume pane | Quarterly option-expiry day | Heavy volume that day is mostly mechanical |
+| Tinted background in the volume pane | Quarterly expiry or Russell reconstitution day | Heavy volume that day is mostly mechanical: about 37% of stocks trade at unusual volume, against 3.5% on other days. No volume alert is sent that day (input) |
 
-## Data feed checks (once, about ten minutes)
+## Data feed checks (once, about fifteen minutes over two days)
 
 TradingView's default US feed without paid exchange data comes from the Cboe exchanges, about a
-tenth of the market's volume. Whether that affects what you see is not documented, so check it:
+tenth of the market's volume. What that does to the volume you see is not documented, and the script
+cannot see which feed it runs on. Check it:
 
-1. **Which feed.** The last row of the Relative Volume table shows the feed prefix. "BATS" or "CBOE",
-   or a red marker beside the symbol name, means Cboe data.
+1. **Which feed.** Look at the marker beside the symbol name on the chart: a red Cboe marker, or a
+   "D" for delayed, means you are not on the primary exchange's real-time data.
 2. **Closed daily bars.** Compare yesterday's daily volume of two large stocks with your broker's
    figure. Within about 5% is fine; a ratio near 0.1 means partial volume.
 3. **The bar in progress.** At a fixed time (say 11:00 New York) compare today's volume on the daily
    chart with your broker's cumulative volume. A ratio near 0.1 means the live bar is partial.
-4. **Intraday history.** On a 1h chart the same table row shows "intraday ÷ daily" for the previous
-   session. Near 1 is fine; far below 1 means the intraday bars are partial.
+4. **Intraday history.** On a 1h chart with regular trading hours the last table row shows
+   yesterday's bars ÷ yesterday's daily bar. 0.6 to 1 is normal, because the daily bar includes the
+   closing auction (about 0.45 the day after a quarterly expiry). Below 0.3 means the intraday
+   history is partial.
+5. **The bar at the moment it closes.** Just after the close (16:05 New York) write down today's
+   daily volume of three stocks. Read the same three bars the next morning. If the next-day figures
+   are more than about 5% higher, a daily bar closes with less volume than the chart later shows, and
+   the alerts on daily bars will fire less often than the chart suggests. In that case set "Unusual
+   volume at zV ≥" a little lower for alerts (1.75), or rely on the next morning's Pine Screener run.
 
-If a check fails, the real-time NASDAQ, NYSE and NYSE Arca data cost about 3 dollars a month each
-(confirm on TradingView's page). Until the checks pass, read relative volume on closed bars only.
+If check 2, 3 or 4 fails, the real-time NASDAQ, NYSE and NYSE Arca data cost about 3 dollars a month
+each (confirm on TradingView's page). Until the checks pass, read relative volume on closed bars
+only and do not rely on its alerts.
+
+## Volume alerts
+
+- **One line with the numbers.** Create an alert on Relative Volume v4 with the condition "Any
+  alert() function call". Each unusual-volume bar then sends one line: relative volume, zV, the bar's
+  move in % and σ, the close and the stock's dollar volume per day. The inputs choose unusual or
+  extreme volume, and whether the session pace is included.
+- **Separate conditions.** "RVOL4 unusual volume", "RVOL4 extreme volume" and "RVOL4 session pace"
+  can be chosen one by one; their messages carry the same numbers, unformatted.
+- **Session pace (1h chart, regular hours).** An early warning that the day is running hot: once per
+  session, when the volume so far is 2.5 spreads above normal for that time of day. About 4 stocks
+  in 100 alert on a day; 63% of those days end with unusual volume on the daily chart.
+- **Fewer alerts.** On a normal day about 4 stocks in 100 have unusual volume. The input "Volume
+  alert only if the bar moved at least" thins them: 1.5σ keeps 53%, 2σ keeps 42%. It only reduces the
+  count; bars that pass were not found to continue or reverse.
+- **Pine Screener.** Columns RVOL, zV, Move, Pace, Pace z, Bars since unusual, Turnover per day.
+  Filter on "Bars since unusual" (0 after the close, 1 while a bar is in progress = the last closed
+  bar was unusual): the live bar's own values are partial. Use it on 1h and above.
+- **What an alert means.** Something happened in that stock: look at the news and at the chart. It
+  says nothing about direction.
 
 ## Before taking a D signal
 

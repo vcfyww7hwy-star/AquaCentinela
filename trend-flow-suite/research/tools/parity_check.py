@@ -19,7 +19,7 @@ Notes
 - `--script trend` takes the long-term trend state from the export itself (dbg_ctx_dir), because the
   higher-timeframe bars are not in the file. Leave "D and B need the market trend not down" off.
 - `--tick` must be the symbol's minimum price step (0.01 for most US stocks).
-- `--script volume` checks Relative Volume v3. It reads the time-of-day slot of every bar from the
+- `--script volume` checks Relative Volume v4. It reads the time-of-day slot of every bar from the
   exported plot dbg_key, so half days and missing bars are handled as the script handled them. The
   bar in progress at export time is partial: export after the close, or ignore the last row.
 """
@@ -36,8 +36,7 @@ from tfs.relvol import relative_volume
 from tfs.trend import TrendParams, trend_setups
 
 SERIES = {
-    "volume": {"Relative volume (×)": "rvol", "Volume z-score (zV)": "zv", "Session pace (×)": "pace",
-               "dbg_z": "z", "dbg_ext": "ext"},
+    "volume": {"RVOL": "rvol", "zV": "zv", "Pace": "pace", "Pace z": "pace_z", "Move": "z"},
     "trend": {"dbg_ts": "ts", "dbg_dir": "dir", "dbg_dip_z": "dip_z", "dbg_ext": "ext",
               "dbg_last_sh": "last_sh", "dbg_last_sl": "last_sl", "dbg_avwap_low": "avwap_low",
               "dbg_sig": "sig", "dbg_sig_stop": "sig_stop", "dbg_entry": "entry",
@@ -73,6 +72,9 @@ def compare(tv: pd.DataFrame, script: str, intraday: bool, warmup: int, rtol: fl
             continue
         a = pd.to_numeric(tv[src], errors="coerce").to_numpy()[warmup:]
         b = ours[col].to_numpy().astype(float)[warmup:]
+        if script == "volume" and key.startswith("Pace") and np.isnan(a).all():
+            rows.append({"series": key, "status": "skipped: the script shows no session pace on this chart (extended hours or not a minute chart)"})
+            continue
         both = ~np.isnan(a) & ~np.isnan(b)
         nan_mismatch = int((np.isnan(a) != np.isnan(b)).sum())
         diff = np.abs(a[both] - b[both])

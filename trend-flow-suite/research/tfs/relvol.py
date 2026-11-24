@@ -1,6 +1,6 @@
-"""Relative Volume v3: reference implementation. Pine twin: pine/relative_volume.pine.
+"""Relative Volume v4: reference implementation. Pine twin: pine/relative_volume.pine.
 
-What changed from v2 (tfs.flow.volume_flow_v2) and why: docs/07_relative_volume_review.md.
+Why it looks like this: docs/07_relative_volume_review.md (two external reviews, experiments E10-E26).
 
 Definitions (every reference value uses EARLIER bars of the same slot only):
   slot    one per time of day on intraday charts (clock time of the bar's open, plus the bar's
@@ -15,6 +15,9 @@ Definitions (every reference value uses EARLIER bars of the same slot only):
   sigma   clipped average of squared close-to-close returns (same slot, same span as normal).
           z = return / sigma.
 A value is reported only after `min_obs` earlier observations of its slot.
+Removed in v4, with the evidence in the review document: the mark "heavy volume, small move,
+stretched low" and its extension and ATR series (E21), and the day estimate on the live daily bar
+(E24; its constants are kept with experiments/e24_intraday_second_review.py).
 """
 from __future__ import annotations
 
@@ -23,8 +26,6 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-
-from .core import atr1, smooth2, span_from_window
 
 
 @dataclass(frozen=True)
@@ -36,37 +37,8 @@ class RelVolParams:
     min_clip: int = 20              # clipping starts once a slot has this many earlier observations
     min_obs_daily: int = 25         # values are shown only after this many earlier observations
     min_obs_intraday: int = 10
-    ext_window: int = 50            # SMA-equivalent window of the extension baseline
-    atr_len: int = 14
     flag_z: float = 2.0             # unusual volume: zV >= 2 (about the busiest 4% of bars)
     extreme_z: float = 3.0          # extreme volume: zV >= 3 (about 1% of bars)
-    quiet_z: float = -2.0
-    small_move: float = 0.5         # |z| <= 0.5
-    low_ext: float = 1.5            # extension <= -1.5 ATR
-
-
-# Daily bar in progress: estimate of the day's relative volume (E19, 858 liquid US stocks, 49 sessions of 2026).
-# Every 30 minutes from minute 30 to minute 360 of a 390-minute session: median share of the day's volume already
-# traded; slope of the final log relative volume on log(volume so far / normal / share); spread of the error.
-DAY_GRID = tuple(range(30, 361, 30))
-DAY_SHARE = (0.081, 0.152, 0.220, 0.287, 0.348, 0.410, 0.468, 0.527, 0.588, 0.652, 0.719, 0.798)
-DAY_BETA = (0.384, 0.519, 0.598, 0.653, 0.699, 0.740, 0.772, 0.798, 0.826, 0.850, 0.874, 0.902)
-DAY_SD = (0.455, 0.417, 0.387, 0.362, 0.336, 0.310, 0.284, 0.259, 0.230, 0.198, 0.162, 0.111)
-
-
-def day_estimate(rvol_so_far: float, elapsed_min: float):
-    """(estimate, low, high) of the day's final relative volume from the relative volume so far, or
-    (nan, nan, nan) outside minutes 30..360 or without volume. low/high = estimate * exp(-+ sd): about two
-    days in three. Pine twin: estRvol, estSd."""
-    if not (30.0 <= elapsed_min <= 360.0) or not (rvol_so_far > 0):
-        return math.nan, math.nan, math.nan
-    x = (elapsed_min - 30.0) / 30.0
-    i = max(0, min(len(DAY_GRID) - 2, int(math.floor(x))))
-    w = max(0.0, min(1.0, x - i))
-    lin = lambda a: a[i] * (1.0 - w) + a[i + 1] * w
-    est = math.exp(lin(DAY_BETA) * math.log(rvol_so_far / lin(DAY_SHARE)))
-    sd = lin(DAY_SD)
-    return est, est * math.exp(-sd), est * math.exp(sd)
 
 
 def slot_keys(index: pd.DatetimeIndex, intraday: bool, bar_minutes=None) -> np.ndarray:
@@ -83,10 +55,24 @@ def slot_keys(index: pd.DatetimeIndex, intraday: bool, bar_minutes=None) -> np.n
 
 def quarterly_expiry(index: pd.DatetimeIndex) -> np.ndarray:
     """True on the third Friday of March, June, September and December (quarterly option and futures
-    expiry, with index rebalances): on those days heavy volume is mostly mechanical. In 2018-2026, 40% of
-    stocks traded at twice their normal volume or more on such a day, against 5% on other days.
-    Pine twin: qExpiry."""
-    return np.asarray((index.dayofweek == 4) & (index.day >= 15) & (index.day <= 21) & (index.month % 3 == 0))
+    expiry, with index rebalances), or, from 2022 on, the Thursday before when that Friday in June is
+    the Juneteenth holiday (19 June on a Friday: Thursday the 18th) or the day it is observed (19 June
+    on a Saturday: Thursday the 17th). Pine twin: qExpiry."""
+    third_fri = (index.dayofweek == 4) & (index.day >= 15) & (index.day <= 21)
+    june_thu = (index.year >= 2022) & (index.month == 6) & (index.dayofweek == 3) & ((index.day == 17) | (index.day == 18))
+    return np.asarray((index.month % 3 == 0) & (third_fri | june_thu))
+
+
+def russell_reconstitution(index: pd.DatetimeIndex) -> np.ndarray:
+    """True on the fourth Friday of June (annual reconstitution of the Russell indexes). Pine twin: russell."""
+    return np.asarray((index.month == 6) & (index.dayofweek == 4) & (index.day >= 22) & (index.day <= 28))
+
+
+def mechanical_day(index: pd.DatetimeIndex) -> np.ndarray:
+    """Days on which heavy volume is mostly mechanical for US stocks: quarterly expiry and the Russell
+    reconstitution. In 2018-2026 about 37% of stocks had zV >= 2 on such a day, against 3.5% on other
+    days (E21): 18% of all flags on 2% of the days. Pine twin: mechDay (US-listed symbols)."""
+    return quarterly_expiry(index) | russell_reconstitution(index)
 
 
 def log_level_lagged(volume, keys, span: int, scale_span: int, clip: float = 3.0, min_clip: int = 20):
@@ -157,9 +143,9 @@ def var_lagged(r, keys, span: int, clip: float = 3.0, min_clip: int = 20):
 
 def relative_volume(df: pd.DataFrame, intraday: bool = False, p: RelVolParams = RelVolParams(),
                     bar_minutes=None, keys=None) -> pd.DataFrame:
-    """Every series of the Relative Volume v3 pane. df: open, high, low, close, volume (DatetimeIndex).
+    """Every series of the Relative Volume v4 pane. df: close, volume (DatetimeIndex).
     keys: optional slot keys taken from the script itself (plot dbg_key of a chart export)."""
-    h, l, c, v = (df[k].to_numpy(dtype=float) for k in ("high", "low", "close", "volume"))
+    c, v = (df[k].to_numpy(dtype=float) for k in ("close", "volume"))
     if intraday and keys is None and bar_minutes is None:
         raise ValueError("intraday: pass bar_minutes or keys (the slot key includes the bar's length)")
     keys = slot_keys(df.index, intraday, bar_minutes) if keys is None else np.asarray(keys, dtype=np.int64)
@@ -177,25 +163,19 @@ def relative_volume(df: pd.DataFrame, intraday: bool = False, p: RelVolParams = 
         var, nv = var_lagged(r, keys, span, p.clip, p.min_clip)
         sigma = np.where((nv >= need) & (var > 0), np.sqrt(var), np.nan)
         z = r / sigma
-        atr = atr1(h, l, c, p.atr_len)
-        base = smooth2(c, span_from_window(p.ext_window))
-        ext = np.where(atr > 0, (c - base) / atr, np.nan)
         unusual = zv >= p.flag_z
         extreme = zv >= p.extreme_z
-        quiet = zv <= p.quiet_z
-        heavy_no_move = unusual & (np.abs(z) <= p.small_move)
-        heavy_no_move_low = heavy_no_move & (ext <= -p.low_ext)
         # session pace (intraday): volume of the session so far / what is normal by this time of day.
-        # The session is taken as the calendar day: valid for sessions that do not cross midnight.
-        pace = np.full(len(v), np.nan)
+        # The session is taken as the calendar day: regular trading hours, sessions that do not cross midnight.
+        pace, pace_z = np.full(len(v), np.nan), np.full(len(v), np.nan)
         if intraday:
             cum = pd.Series(np.nan_to_num(v), index=df.index).groupby(df.index.normalize()).cumsum().to_numpy()
-            mu_c, _, n_c = log_level_lagged(cum, keys, p.span_intraday, p.scale_span, p.clip, p.min_clip)
+            mu_c, s_c, n_c = log_level_lagged(cum, keys, p.span_intraday, p.scale_span, p.clip, p.min_clip)
             pace = np.where((n_c >= need) & (cum > 0), cum / np.exp(mu_c), np.nan)
+            lc = np.where(cum > 0, np.log(np.where(cum > 0, cum, 1.0)), np.nan)
+            pace_z = np.where((n_c >= need) & (s_c > 0), (lc - mu_c) / s_c, np.nan)   # the pace in units of its own spread
     return pd.DataFrame({
         "key": keys, "r": r, "mu": mu, "s": s, "n": n, "normal": normal, "rvol": rvol, "zv": zv,
-        "level": level, "sigma": sigma, "z": z, "atr": atr, "ext": ext,
-        "unusual": unusual, "extreme": extreme, "quiet": quiet,
-        "heavy_no_move": heavy_no_move, "heavy_no_move_low": heavy_no_move_low, "pace": pace,
-        "q_expiry": quarterly_expiry(df.index),
+        "level": level, "sigma": sigma, "z": z, "unusual": unusual, "extreme": extreme, "pace": pace, "pace_z": pace_z,
+        "q_expiry": quarterly_expiry(df.index), "mech_day": mechanical_day(df.index),
     }, index=df.index)

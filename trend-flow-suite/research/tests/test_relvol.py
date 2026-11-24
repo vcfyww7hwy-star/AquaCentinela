@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
 
-from tfs.relvol import (RelVolParams, log_level_lagged, quarterly_expiry, relative_volume, slot_keys,
-                        var_lagged)
+from tfs.relvol import (RelVolParams, log_level_lagged, mechanical_day, quarterly_expiry, relative_volume,
+                        russell_reconstitution, slot_keys, var_lagged)
 from tests.test_flow import synthetic_daily, synthetic_intraday
 
 P = RelVolParams()
@@ -12,7 +12,7 @@ def test_reference_uses_earlier_bars_only():
     df = synthetic_daily(n=900, seed=4)
     full = relative_volume(df)
     cut = relative_volume(df.iloc[:700])
-    for col in ("rvol", "zv", "z", "ext", "normal"):
+    for col in ("rvol", "zv", "z", "normal"):
         assert np.allclose(full[col].to_numpy()[:700], cut[col].to_numpy(), equal_nan=True)
     # the reference of bar t does not depend on the volume of bar t
     d2 = df.copy()
@@ -94,6 +94,12 @@ def test_session_pace_matches_the_day_at_the_close():
     day_rvol = pd.Series(day_vol.to_numpy() / np.exp(mu), index=day_vol.index).iloc[60:]
     assert np.allclose(last["pace"].to_numpy(), day_rvol.to_numpy(), rtol=1e-9)
     assert f["pace"].iloc[7 * 30:].notna().all() and relative_volume(synthetic_daily(n=100))["pace"].isna().all()
+    # the pace in units of its own spread: the day's zV at the close, and consistent with the multiple everywhere
+    _, s_d, _ = log_level_lagged(day_vol.to_numpy(), np.zeros(len(day_vol), dtype=np.int64), P.span_intraday, P.scale_span)
+    assert np.allclose(last["pace_z"].to_numpy(), (np.log(day_rvol) / s_d[60:]).to_numpy(), rtol=1e-9)
+    k = f["pace_z"].notna()
+    assert k.sum() > 600 and (np.sign(f["pace_z"][k]) == np.sign(np.log(f["pace"][k]))).all()
+    assert relative_volume(synthetic_daily(n=100))["pace_z"].isna().all()
 
 
 def test_clipped_variance_is_not_inflated_by_a_shock():
@@ -110,35 +116,37 @@ def test_quarterly_expiry_days():
     assert list(quarterly_expiry(idx)) == [True, True, False, False, False, True]
 
 
-# ---------------- marks, warm-up, counting rules ----------------
-def _daily_with_event(move_sigma, ext_sign, vol_mult):
-    """A calm history, a slide (or rise) of several ATR, then one bar with a chosen move and volume."""
+def test_mechanical_days_follow_the_holiday_and_the_russell_reconstitution():
+    # 19 June 2026 is a Friday and a market holiday (Juneteenth): the expiry is Thursday 18 June
+    idx = pd.DatetimeIndex(["2026-06-18", "2026-06-17", "2020-06-19", "2020-06-18", "2025-06-20", "2025-06-18", "2037-06-18"])
+    assert list(quarterly_expiry(idx)) == [True, False, True, False, True, False, True]
+    # 19 June 2027 is a Saturday, observed on Friday 18 June (NYSE calendar): the expiry is Thursday 17 June
+    idx = pd.DatetimeIndex(["2027-06-17", "2027-06-16", "2021-06-17", "2021-06-18", "2032-06-17"])
+    assert list(quarterly_expiry(idx)) == [True, False, False, True, True]
+    # fourth Friday of June: 2018-06-22, 2019-06-28, 2024-06-28, 2026-06-26; not the third or the fifth
+    idx = pd.DatetimeIndex(["2018-06-22", "2019-06-28", "2024-06-28", "2026-06-26", "2018-06-29", "2026-06-19", "2026-07-24"])
+    assert list(russell_reconstitution(idx)) == [True, True, True, True, False, False, False]
+    idx = pd.DatetimeIndex(["2026-06-18", "2026-06-26", "2026-09-18", "2026-06-25", "2026-10-16"])
+    assert list(mechanical_day(idx)) == [True, True, True, False, False]
+    f = relative_volume(synthetic_daily(n=300, seed=5))
+    assert (f["mech_day"] == mechanical_day(f.index)).all() and (f["q_expiry"] == quarterly_expiry(f.index)).all()
+
+
+# ---------------- flags, warm-up, counting rules ----------------
+def test_flags_and_thresholds():
     df = synthetic_daily(n=500, seed=21)
-    c = df["close"].to_numpy().copy()
-    drift = np.linspace(0.0, ext_sign * 0.25, 12)                 # a 25% move over 12 bars stretches the extension
-    c[480:492] = c[479] * np.exp(drift)
-    c[492:] = c[491]
-    f0 = relative_volume(df.assign(close=c, open=c, high=c * 1.002, low=c * 0.998))
-    c[492] = c[491] * np.exp(move_sigma * f0["sigma"].iloc[492])
+    f0 = relative_volume(df)
     v = df["volume"].to_numpy().copy()
-    v[492] = vol_mult * f0["normal"].iloc[492]
-    d = df.assign(close=c, open=c, high=c * 1.002, low=c * 0.998, volume=v)
-    return relative_volume(d).iloc[492]
-
-
-def test_marks_and_thresholds():
-    row = _daily_with_event(0.2, -1, 4.0)
-    assert row["zv"] >= P.flag_z and abs(row["z"]) <= P.small_move and row["ext"] <= -P.low_ext
-    assert row["unusual"] and row["heavy_no_move"] and row["heavy_no_move_low"]
-    assert not _daily_with_event(0.2, +1, 4.0)["heavy_no_move_low"]          # stretched high, not low
-    assert not _daily_with_event(1.5, -1, 4.0)["heavy_no_move"]              # the bar moved
-    assert not _daily_with_event(0.2, -1, 1.0)["unusual"]                    # ordinary volume
+    v[492] = 4.0 * f0["normal"].iloc[492]
+    row = relative_volume(df.assign(volume=v)).iloc[492]
+    assert row["unusual"] and row["zv"] >= P.flag_z and np.isclose(row["rvol"], 4.0)
+    assert not f0["unusual"].iloc[492] or f0["zv"].iloc[492] >= P.flag_z
     f = relative_volume(synthetic_daily(n=600, seed=22))
     k = f["zv"].notna()
     assert np.allclose(f["level"][k], np.exp(P.flag_z * f["s"][k]))
     assert np.allclose(np.log(f["level"][k]) / f["s"][k], P.flag_z)          # volume = level x normal gives zV = flag
     assert ((f["zv"] >= P.flag_z) == f["unusual"]).all() and ((f["zv"] >= P.extreme_z) == f["extreme"]).all()
-    assert ((f["zv"] <= P.quiet_z) == f["quiet"]).all()
+    assert not {"ext", "atr", "heavy_no_move", "heavy_no_move_low", "quiet"} & set(f.columns)   # removed in v4
 
 
 def test_intraday_warm_up_half_days_and_required_bar_length():
@@ -247,38 +255,27 @@ def test_python_twin_equals_a_literal_transcription_of_the_pine_functions():
 
 
 # ---------------- the day estimate ----------------
-def test_day_estimate_and_its_constants():
-    import json
-    import pathlib
-    from tfs.relvol import DAY_BETA, DAY_GRID, DAY_SD, DAY_SHARE, day_estimate
-    est, lo, hi = day_estimate(DAY_SHARE[3], 120.0)                           # a normal day at minute 120
-    assert np.isclose(est, 1.0) and lo < 1.0 < hi and np.isclose(hi / est, np.exp(DAY_SD[3]))
-    raw = 2.0                                                                 # twice the usual share so far
-    est2, _, _ = day_estimate(raw * DAY_SHARE[0], 30.0)
-    est9, _, _ = day_estimate(raw * DAY_SHARE[-1], 360.0)
-    assert 1.0 < est2 < est9 < 2.0                                            # early readings are pulled harder towards 1
-    assert np.isclose(est2, 2.0 ** DAY_BETA[0])
-    assert all(np.isnan(day_estimate(1.0, m)[0]) for m in (0.0, 29.0, 361.0)) and np.isnan(day_estimate(0.0, 120.0)[0])
-    mid, _, _ = day_estimate(1.0, 45.0)                                       # interpolation between grid points
-    assert np.isclose(mid, np.exp(0.5 * (DAY_BETA[0] + DAY_BETA[1]) * np.log(1.0 / (0.5 * (DAY_SHARE[0] + DAY_SHARE[1])))))
-    f = pathlib.Path(__file__).resolve().parents[1] / "results" / "e19_intraday_real_data.json"
-    c = json.loads(f.read_text())["Q4b_day_estimate_constants"]
-    assert tuple(c["grid_min"]) == DAY_GRID
-    assert np.allclose(c["share"], DAY_SHARE, atol=0.0015) and np.allclose(c["beta"], DAY_BETA, atol=0.0015)
-    assert np.allclose(c["resid_sd"], DAY_SD, atol=0.0015)
-
-
 def test_pine_script_carries_the_same_constants_as_the_twin():
     import pathlib
     import re
-    from tfs.relvol import DAY_BETA, DAY_SD, DAY_SHARE
     src = (pathlib.Path(__file__).resolve().parents[2] / "pine" / "relative_volume.pine").read_text()
-
-    def arr(name):
-        m = re.search(name + r"\s*=\s*array\.from\(([^)]*)\)", src)
-        return tuple(float(x) for x in m.group(1).split(","))
-    assert arr("DAY_SHARE") == DAY_SHARE and arr("DAY_BETA") == DAY_BETA and arr("DAY_SD") == DAY_SD
-    assert re.search(r"float CLIP\s*=\s*3\.0", src) and re.search(r"int\s+MIN_CLIP\s*=\s*20", src)
+    assert re.search(r"float\s+CLIP\s*=\s*3\.0", src) and re.search(r"int\s+MIN_CLIP\s*=\s*20", src)
     assert "int  minObs  = todOK ? 10 : 25" in src
     assert f"input.int({P.span_intraday}, \"Intraday" in src and f"input.int({P.span_daily}, \"Daily" in src
     assert f"input.int({P.scale_span}, \"Spread" in src and "input.float(2.0, \"Unusual" in src
+    assert "input.float(3.0, \"Extreme" in src
+    # the calendar rule of the twin, as written in the script
+    assert "dayofweek == dayofweek.friday and dayofmonth >= 15 and dayofmonth <= 21" in src
+    assert "year >= 2022 and month == 6 and dayofweek == dayofweek.thursday and (dayofmonth == 17 or dayofmonth == 18)" in src
+    assert "month == 6 and dayofweek == dayofweek.friday and dayofmonth >= 22 and dayofmonth <= 28" in src
+    # state is updated on closed bars only, and a bar open at load is not a closed bar
+    assert src.count("MIN_CLIP, conf)") == 3
+    assert "bool conf       = barstate.isconfirmed and not openAtLoad" in src
+    assert "barstate.islast and barstate.ishistory and (na(time_close) or timenow < time_close + feedLag)" in src
+    # removed in v4
+    for gone in ("DAY_SHARE", "estRvol", "showH", "hMark", "dbg_ext", "showQuiet"):
+        assert gone not in src
+    # the first plots are the numeric series the alert messages refer to by position
+    plots = re.findall(r"^plot\((\w+), \"([^\"]+)\"", src, flags=re.M)
+    assert plots[:5] == [("rvol", "RVOL"), ("zv", "zV"), ("z", "Move"), ("paceShow", "Pace"), ("paceZShow", "Pace z")]
+    assert "paceZ >= paceAlert and not paceFired" in src

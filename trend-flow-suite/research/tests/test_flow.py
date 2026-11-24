@@ -200,7 +200,7 @@ def test_parity_tool_passes_on_identical_values_and_flags_a_perturbation(script)
     tv = df.copy()
     if script == "volume":
         from tfs.relvol import relative_volume
-        ours, name, key = relative_volume(df), "Relative Volume v3", "Relative volume (×)"
+        ours, name, key = relative_volume(df), "Relative Volume v4", "RVOL"
     else:
         ctx = weekly_context_dir(df)
         ours, _ = trend_setups(df, p=TrendParams(tick=0.01), htf_dir=ctx)
@@ -210,7 +210,8 @@ def test_parity_tool_passes_on_identical_values_and_flags_a_perturbation(script)
     for k, col in SERIES[script].items():
         tv[f"{name}: {k}"] = ours[col].astype(float)              # mimic TradingView's "<script>: <plot>" headers
     ok, rows = compare(tv, script, intraday=False, warmup=600, rtol=1e-6, atol=1e-9, tick=0.01)
-    assert ok and all(r["status"] == "OK" for r in rows)
+    assert ok and all(r["status"] == "OK" or r["status"].startswith("skipped") for r in rows)
+    assert sum(r["status"] == "OK" for r in rows) >= 3
     tv[f"{name}: {key}"] = tv[f"{name}: {key}"] * 1.001
     ok, rows = compare(tv, script, intraday=False, warmup=600, rtol=1e-6, atol=1e-9, tick=0.01)
     assert not ok and [r for r in rows if r["series"] == key][0]["status"] == "MISMATCH"
