@@ -243,5 +243,53 @@ Decisions (v2 of the suite):
 | Volume pane | Reduced to relative volume and "absorption at lows"; flow lines, asymmetry tint, accumulation / distribution, divergences removed | Q5 |
 | 12-month momentum | Not added | C3 |
 
-Still untested: everything intraday (1h, 4h), weekly charts, small caps, other markets, and any
-period after early 2018. A survivorship-free dataset would be needed to trust absolute return levels.
+Still untested: everything intraday (1h, 4h), weekly charts, other markets. A survivorship-free
+dataset would be needed to trust absolute return levels. The period after early 2018 was tested on
+24 Nov 2026: section 2.8.
+
+### 2.8 The same tests on 2018–2026, and what to pair with the volume pane (E27–E29, 24 Nov 2026)
+
+Set EM: 1,123 liquid US stocks listed in Nov 2026, evaluated Feb 2018 – Oct 2026 (survivors only).
+The benchmark is the equal-weight index of the set. Outputs: `research/results/e27_…`, `e28_…`,
+`e29_…json`.
+
+**Frozen tests, nothing re-tuned (E27, part 1)**
+
+| Test | EM 2018–2026 | Verdict |
+|---|---|---|
+| C1 dip in a long-term uptrend, against uptrend bars without a dip | f5 −0.09 [−0.45, +0.15]; f10 −0.17 [−0.51, +0.14]; market-adjusted f5 +0.02 [−0.04, +0.08] | **Not confirmed.** By period, f5: 2018–2019 +0.17 [+0.05, +0.36]; 2020–2022 −0.43 [−1.17, +0.17]; 2023–2026 +0.09 [−0.02, +0.19]. With the market's trend not down +0.06 [−0.04, +0.16]; down −0.41 [−1.23, +0.31] |
+| C2 rule D as trades | 10-bar exit +0.05R [−0.04, +0.16], 17,110 trades (random entries +0.04R, p = 0.095); 3-ATR chandelier +0.08R [−0.02, +0.19] (random +0.07R, p = 0.095). 2020: −0.34R and −0.10R; 2022: −0.22R and −0.29R | Not confirmed, as on LH |
+| C3 12-1 momentum | Relative strength > +1σ: fx60 +0.05 [−0.01, +0.11]; ≤ −1σ: −0.04 [−0.11, +0.03] | Not confirmed; signs as expected |
+| H1 trend filter as a risk switch, equal-weight portfolio (Sharpe / max drawdown) | Buy and hold 0.70 / −45%. Long unless the weekly trend is down 0.58 / −38%. Long while above the 200-day average 0.73 / −15%. Long unless the daily trend is down 0.72 / −27%. Long unless the market's trend is down 0.81 / −38% | **The drawdown part holds for every filter, in proportion to the exposure it removes. The weekly rule was the weakest here** (15% less drawdown at a lower Sharpe ratio, against 29–40% at an unchanged ratio before 2018). No filter is best in every era |
+
+**Exploratory (E27 part 2, E28, E29)**
+
+- **The two indicators do not reinforce each other at the entry.** Rule-D bars with unusual volume
+  (15% of them) against rule-D bars with ordinary volume: f5 −0.08 [−0.26, +0.06].
+- **No drift after events.** After a bar with extreme volume and a move of 2σ or more, the signed
+  market-adjusted return over 5, 20 and 60 bars is −0.03, −0.02 and 0.00, intervals through zero.
+- **Strength selects.** Stocks ranked each day by close ÷ 52-week high: top fifth minus bottom fifth,
+  60-bar return relative to the set, in risk units: A +0.16 [−0.01, +0.33], B +0.21 [+0.06, +0.38],
+  LH −0.02 [−0.11, +0.08], MS +0.14 [+0.04, +0.24], EO +0.09 [+0.00, +0.17], EM +0.15 [+0.04, +0.27].
+  The reading rule fixed before the run (positive in five of six sets, interval excluding zero in
+  three) is met. 12-1 momentum shows the same pattern, weaker.
+- **It depends on the market's own state** (split added afterwards; the literature predicts it:
+  Daniel and Moskowitz 2016). With the market within 10% of its own 52-week high, top minus bottom
+  fifth over 60 bars: LH +0.07 [−0.03, +0.17], MS +0.23 [+0.13, +0.34], EM +0.30 [+0.16, +0.44].
+  With the market more than 10% below its high: −0.22, −0.04, −0.11. The same ordering holds at
+  thresholds of 15% and 5%.
+- **It is the weak fifth that matters.** In a market near its high, over 20 bars and relative to the
+  middle three fifths: bottom fifth −0.6% [−1.1, −0.1] (LH), −0.9% [−1.5, −0.3] (MS), −1.1%
+  [−2.0, −0.2] (EM); top fifth +0.0%, +0.2%, +0.4%. Survivorship works against this result: weak
+  stocks that were later delisted are missing.
+- **Returns were earned overnight in 2018–2026.** Equal-weight average per day: +5.8 bp from the
+  previous close to the open (t = 2.9, positive in 8 of 9 years) and −3.9 bp from open to close
+  (positive in 2 of 9). 2006–2017 mid and small caps: +2.7 and −0.8. S&P names 2000–2012: +0.6 and
+  +2.3, no such pattern.
+
+**What this changes.** Setup D loses its claim to be the default entry: its bounce is present in calm
+years and absent or negative in 2020–2022. The long-term trend state remains a tool to cut
+drawdowns, not a better one than a 200-day average. The price-side information with the most
+support is slow and cross-sectional: avoid stocks far below their 52-week high while the market is
+near its own. Trend & Setups v2 is unchanged in this commit; the proposed redesign is recorded in
+the roadmap.

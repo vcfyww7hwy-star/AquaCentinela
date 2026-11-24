@@ -19,8 +19,25 @@ research/                        Python twins of every calculation, tests, exper
 | R | Research toolkit: Pine-twin maths, backtests, overfitting statistics | Built; 94 tests pass |
 | 1 | Volume pane | **Relative Volume v4** (24 Nov 2026), after two external reviews and tests E10–E26, including 2018–2026 data and about a year of real intraday bars. Not yet compiled in TradingView |
 | 2–3 | Trend & Setups and its strategy version | **Rebuilt as v2** after E05–E09; compile check pending |
-| 4 | Validation on real stocks | **Done on daily bars** (E05–E09: four sets, about 1.6 million stock-days, 1999–2018). Result: no confirmed trading edge; one small confirmed regularity; the long-term trend works as a risk switch. See `06_validation_lite.md` |
+| 4 | Validation on real stocks | **Done on daily bars** (E05–E09: four sets, about 1.6 million stock-days, 1999–2018; E27–E29: 2018–2026). Result: no confirmed trading edge. The dip bounce of 1999–2018 is not confirmed on 2018–2026; trend filters cut drawdowns in proportion to the exposure they remove; strength relative to the 52-week high selects, in a market near its own high. See `06_validation_lite.md`, section 2.8 |
 | 5 | Playbook | Rewritten for v2 (`05_playbook.md`) |
+
+## Proposed next step for the price side (24 Nov 2026, not built)
+
+The evidence of section 2.8 of `06_validation_lite.md` points to a redesign of the overlay around
+what held up, instead of a new signal:
+
+1. **Strength state** as the main readout: close ÷ 52-week high for the stock and for the benchmark.
+   Avoid new longs in stocks far below their high while the market is near its own; treat a market
+   more than about 10% below its high as a different regime, where that rule does not hold.
+2. **Exposure rule** (long-term trend or 200-day average), presented as drawdown control.
+3. **Risk plan** as in v2: stop orders at 2 ATR of the signal bar, size from the stop, position cap.
+4. **Event layer** from TradingView's own data: next earnings date, last earnings bar, ex-dividend.
+   Not testable with the data sets used here.
+5. **Entries shown as labelled candidates**, none presented as validated; rule D only as one of them.
+6. Execution note: in 2018–2026 the return was earned overnight (E29).
+
+To be reviewed externally before any script is written.
 
 ## What is still open
 
