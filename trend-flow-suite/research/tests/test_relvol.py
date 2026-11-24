@@ -108,3 +108,177 @@ def test_clipped_variance_is_not_inflated_by_a_shock():
 def test_quarterly_expiry_days():
     idx = pd.DatetimeIndex(["2026-09-18", "2026-12-18", "2026-10-16", "2026-09-11", "2026-09-17", "2027-03-19 10:30"])
     assert list(quarterly_expiry(idx)) == [True, True, False, False, False, True]
+
+
+# ---------------- marks, warm-up, counting rules ----------------
+def _daily_with_event(move_sigma, ext_sign, vol_mult):
+    """A calm history, a slide (or rise) of several ATR, then one bar with a chosen move and volume."""
+    df = synthetic_daily(n=500, seed=21)
+    c = df["close"].to_numpy().copy()
+    drift = np.linspace(0.0, ext_sign * 0.25, 12)                 # a 25% move over 12 bars stretches the extension
+    c[480:492] = c[479] * np.exp(drift)
+    c[492:] = c[491]
+    f0 = relative_volume(df.assign(close=c, open=c, high=c * 1.002, low=c * 0.998))
+    c[492] = c[491] * np.exp(move_sigma * f0["sigma"].iloc[492])
+    v = df["volume"].to_numpy().copy()
+    v[492] = vol_mult * f0["normal"].iloc[492]
+    d = df.assign(close=c, open=c, high=c * 1.002, low=c * 0.998, volume=v)
+    return relative_volume(d).iloc[492]
+
+
+def test_marks_and_thresholds():
+    row = _daily_with_event(0.2, -1, 4.0)
+    assert row["zv"] >= P.flag_z and abs(row["z"]) <= P.small_move and row["ext"] <= -P.low_ext
+    assert row["unusual"] and row["heavy_no_move"] and row["heavy_no_move_low"]
+    assert not _daily_with_event(0.2, +1, 4.0)["heavy_no_move_low"]          # stretched high, not low
+    assert not _daily_with_event(1.5, -1, 4.0)["heavy_no_move"]              # the bar moved
+    assert not _daily_with_event(0.2, -1, 1.0)["unusual"]                    # ordinary volume
+    f = relative_volume(synthetic_daily(n=600, seed=22))
+    k = f["zv"].notna()
+    assert np.allclose(f["level"][k], np.exp(P.flag_z * f["s"][k]))
+    assert np.allclose(np.log(f["level"][k]) / f["s"][k], P.flag_z)          # volume = level x normal gives zV = flag
+    assert ((f["zv"] >= P.flag_z) == f["unusual"]).all() and ((f["zv"] >= P.extreme_z) == f["extreme"]).all()
+    assert ((f["zv"] <= P.quiet_z) == f["quiet"]).all()
+
+
+def test_intraday_warm_up_half_days_and_required_bar_length():
+    df, _ = synthetic_intraday(days=60)
+    bm = np.full(len(df), 60)
+    f = relative_volume(df, intraday=True, bar_minutes=bm)
+    per_slot = f.groupby(f.index.time)["rvol"].apply(lambda x: int(x.isna().sum()))
+    assert (per_slot == P.min_obs_intraday).all()                             # 10 earlier sessions per slot, not fewer
+    # a half day: the 12:30 bar of session 40 is 30 minutes long
+    i = np.where((df.index.normalize() == df.index.normalize().unique()[40]) & (df.index.time == pd.Timestamp("12:30").time()))[0][0]
+    bm2 = bm.copy()
+    bm2[i] = 30
+    d2 = df.copy()
+    d2.iloc[i, d2.columns.get_loc("volume")] *= 0.2
+    g = relative_volume(d2, intraday=True, bar_minutes=bm2)
+    assert np.isnan(g["rvol"].iloc[i])                                        # its own slot, still warming up
+    nxt = i + 7                                                               # the next session's 12:30 bar
+    ref_without = relative_volume(df.drop(df.index[i]), intraday=True, bar_minutes=np.full(len(df) - 1, 60))
+    assert np.isclose(g["normal"].iloc[nxt], ref_without["normal"].iloc[nxt - 1])   # the short bar left it untouched
+    try:
+        relative_volume(df, intraday=True)
+        assert False, "must require bar_minutes or keys"
+    except ValueError:
+        pass
+
+
+def test_counting_rules():
+    keys = np.zeros(6, dtype=np.int64)
+    v, n = var_lagged(np.array([0.01, 0.0, np.nan, 0.02, 0.0, 0.01]), keys, 50)
+    assert list(n) == [0, 1, 2, 2, 3, 4]                                      # zero returns count, missing ones do not
+    assert v[2] < v[1]                                                        # a zero return lowers the variance
+    mu, s, cnt = log_level_lagged(np.array([100.0, 0.0, np.nan, 120.0, 110.0]), keys[:5], 50, 100)
+    assert list(cnt) == [0, 1, 1, 1, 2] and np.isclose(mu[3], np.log(100.0))  # zero and missing volume are skipped
+    # clipping starts only after min_clip earlier observations
+    base = np.full(40, 1000.0)
+    early, late = base.copy(), base.copy()
+    early[5], late[30] = 50000.0, 50000.0
+    rng = np.random.default_rng(1)
+    noise = np.exp(rng.normal(0, 0.3, 40))
+    mu_e, _, _ = log_level_lagged(early * noise, np.zeros(40, dtype=np.int64), 50, 100, 3.0, 20)
+    mu_l, _, _ = log_level_lagged(late * noise, np.zeros(40, dtype=np.int64), 50, 100, 3.0, 20)
+    mu_0, _, _ = log_level_lagged(base * noise, np.zeros(40, dtype=np.int64), 50, 100, 3.0, 20)
+    assert mu_e[6] - mu_0[6] > 0.5 and mu_l[31] - mu_0[31] < 0.1              # unclipped early, clipped later
+
+
+# ---------------- literal transcription of the Pine functions ----------------
+def _pine_log_level(vol, keys, span, scale_span, clip, min_clip):
+    m_num, m_den, m_num2, m_den2, m_cnt = {}, {}, {}, {}, {}
+    out = []
+    for x, key in zip(vol, keys):
+        cnt = m_cnt.get(key, 0)
+        num, den, num2, den2 = m_num.get(key, 0.0), m_den.get(key, 0.0), m_num2.get(key, 0.0), m_den2.get(key, 0.0)
+        mu = num / den if cnt > 0 and den > 0 else np.nan
+        s = np.sqrt(num2 / den2) if den2 > 0 and num2 > 0 else np.nan
+        if not np.isnan(x) and x > 0:
+            a, b, lx = 2.0 / (span + 1), 2.0 / (scale_span + 1), np.log(x)
+            if cnt == 0:
+                m_num[key], m_den[key], m_cnt[key] = a * lx, a, 1
+            else:
+                e = lx - mu
+                if cnt >= min_clip and not np.isnan(s) and s > 0:
+                    e = max(-clip * s, min(clip * s, e))
+                m_num[key] = (1.0 - a) * num + a * (mu + e)
+                m_den[key] = (1.0 - a) * den + a
+                m_num2[key] = (1.0 - b) * num2 + b * e * e
+                m_den2[key] = (1.0 - b) * den2 + b
+                m_cnt[key] = cnt + 1
+        out.append((mu, s, cnt))
+    return np.array(out, dtype=float).T
+
+
+def _pine_var(ret, keys, span, clip, min_clip):
+    m_num, m_den, m_cnt = {}, {}, {}
+    out = []
+    for x, key in zip(ret, keys):
+        cnt = m_cnt.get(key, 0)
+        num, den = m_num.get(key, 0.0), m_den.get(key, 0.0)
+        v = num / den if cnt > 0 and den > 0 else np.nan
+        if not np.isnan(x):
+            a, x2 = 2.0 / (span + 1), x * x
+            if cnt >= min_clip and not np.isnan(v) and v > 0:
+                x2 = min(x2, clip * clip * v)
+            m_num[key], m_den[key], m_cnt[key] = (1.0 - a) * num + a * x2, (1.0 - a) * den + a, cnt + 1
+        out.append((v, cnt))
+    return np.array(out, dtype=float).T
+
+
+def test_python_twin_equals_a_literal_transcription_of_the_pine_functions():
+    rng = np.random.default_rng(77)
+    for trial in range(6):
+        n = 1500
+        keys = rng.integers(0, 5, n) * 600000 + rng.choice([60, 60, 60, 30], n)
+        vol = rng.lognormal(12, 0.5, n) * np.where(rng.random(n) < 0.01, 12.0, 1.0)
+        vol[rng.random(n) < 0.02] = 0.0
+        vol[rng.random(n) < 0.01] = np.nan
+        ret = rng.normal(0, 0.01, n) * np.where(rng.random(n) < 0.01, 8.0, 1.0)
+        ret[rng.random(n) < 0.05] = 0.0
+        ret[rng.random(n) < 0.01] = np.nan
+        mu, s, cnt = log_level_lagged(vol, keys, 20, 100, 3.0, 20)
+        pm, ps, pc = _pine_log_level(vol, keys, 20, 100, 3.0, 20)
+        assert np.allclose(mu, pm, rtol=0, atol=1e-12, equal_nan=True) and np.allclose(s, ps, rtol=0, atol=1e-12, equal_nan=True)
+        assert (cnt == pc).all()
+        v, nv = var_lagged(ret, keys, 20, 3.0, 20)
+        pv, pn = _pine_var(ret, keys, 20, 3.0, 20)
+        assert np.allclose(v, pv, rtol=0, atol=1e-15, equal_nan=True) and (nv == pn).all()
+
+
+# ---------------- the day estimate ----------------
+def test_day_estimate_and_its_constants():
+    import json
+    import pathlib
+    from tfs.relvol import DAY_BETA, DAY_GRID, DAY_SD, DAY_SHARE, day_estimate
+    est, lo, hi = day_estimate(DAY_SHARE[3], 120.0)                           # a normal day at minute 120
+    assert np.isclose(est, 1.0) and lo < 1.0 < hi and np.isclose(hi / est, np.exp(DAY_SD[3]))
+    raw = 2.0                                                                 # twice the usual share so far
+    est2, _, _ = day_estimate(raw * DAY_SHARE[0], 30.0)
+    est9, _, _ = day_estimate(raw * DAY_SHARE[-1], 360.0)
+    assert 1.0 < est2 < est9 < 2.0                                            # early readings are pulled harder towards 1
+    assert np.isclose(est2, 2.0 ** DAY_BETA[0])
+    assert all(np.isnan(day_estimate(1.0, m)[0]) for m in (0.0, 29.0, 361.0)) and np.isnan(day_estimate(0.0, 120.0)[0])
+    mid, _, _ = day_estimate(1.0, 45.0)                                       # interpolation between grid points
+    assert np.isclose(mid, np.exp(0.5 * (DAY_BETA[0] + DAY_BETA[1]) * np.log(1.0 / (0.5 * (DAY_SHARE[0] + DAY_SHARE[1])))))
+    f = pathlib.Path(__file__).resolve().parents[1] / "results" / "e19_intraday_real_data.json"
+    c = json.loads(f.read_text())["Q4b_day_estimate_constants"]
+    assert tuple(c["grid_min"]) == DAY_GRID
+    assert np.allclose(c["share"], DAY_SHARE, atol=0.0015) and np.allclose(c["beta"], DAY_BETA, atol=0.0015)
+    assert np.allclose(c["resid_sd"], DAY_SD, atol=0.0015)
+
+
+def test_pine_script_carries_the_same_constants_as_the_twin():
+    import pathlib
+    import re
+    from tfs.relvol import DAY_BETA, DAY_SD, DAY_SHARE
+    src = (pathlib.Path(__file__).resolve().parents[2] / "pine" / "relative_volume.pine").read_text()
+
+    def arr(name):
+        m = re.search(name + r"\s*=\s*array\.from\(([^)]*)\)", src)
+        return tuple(float(x) for x in m.group(1).split(","))
+    assert arr("DAY_SHARE") == DAY_SHARE and arr("DAY_BETA") == DAY_BETA and arr("DAY_SD") == DAY_SD
+    assert re.search(r"float CLIP\s*=\s*3\.0", src) and re.search(r"int\s+MIN_CLIP\s*=\s*20", src)
+    assert "int  minObs  = todOK ? 10 : 25" in src
+    assert f"input.int({P.span_intraday}, \"Intraday" in src and f"input.int({P.span_daily}, \"Daily" in src
+    assert f"input.int({P.scale_span}, \"Spread" in src and "input.float(2.0, \"Unusual" in src

@@ -173,6 +173,42 @@ def main():
     out["Q4_daily_projection"] = res4
     out["Q4_note"] = {"test_sessions": int(len(test_days)), "generic_curve_from_sessions": int(half)}
 
+    # Q4b constants of the day estimate used by the pane (tfs.relvol.DAY_SHARE, DAY_BETA, DAY_SD):
+    # sessions 16 onwards (15 earlier sessions define each stock's normal day volume)
+    mu15 = lnV.T.expanding(15).mean().shift(1).T
+    fin15 = lnV - mu15
+    use = days[15:]
+    hh = len(use) // 2
+    grid, sh_l, be_l, sd_l, oos = list(range(30, 361, 30)), [], [], [], {}
+    for m in grid:
+        C = b[b["mins"] < m].groupby(["ticker", "day"])["volume"].sum().unstack("day").reindex(index=V.index, columns=days)
+        lsh = np.log((C / V).replace(0, np.nan))
+        lnC = np.log(C.replace(0, np.nan))
+
+        def xy(dd, med):
+            x = (lnC - med - mu15)[dd].to_numpy().ravel()
+            y = fin15[dd].to_numpy().ravel()
+            k = np.isfinite(x) & np.isfinite(y)
+            return x[k], y[k]
+        med_all = float(np.nanmedian(lsh[use].to_numpy()))
+        xa, ya = xy(use, med_all)
+        be, al = np.polyfit(xa, ya, 1)
+        sh_l.append(round(float(np.exp(med_all)), 3))
+        be_l.append(round(float(be), 3))
+        sd_l.append(round(float(np.std(ya - (al + be * xa))), 3))
+        # out of sample: fit on the first half of those sessions, score on the second half (slope only, no intercept)
+        med1 = float(np.nanmedian(lsh[use[:hh]].to_numpy()))
+        x1, y1 = xy(use[:hh], med1)
+        b1, a1 = np.polyfit(x1, y1, 1)
+        x2, y2 = xy(use[hh:], med1)
+        e2, hi2, hiraw = b1 * x2, b1 * x2 >= np.log(2.0), x2 >= np.log(2.0)
+        oos[str(m)] = {"mae_ln_raw": round(float(np.abs(y2 - x2).mean()), 3), "mae_ln_estimate": round(float(np.abs(y2 - e2).mean()), 3),
+                       "raw_reads_2x_day_ends_lower_share": round(float((y2[hiraw] < x2[hiraw]).mean()), 3),
+                       "estimate_reads_2x_day_ends_lower_share": round(float((y2[hi2] < e2[hi2]).mean()), 3) if hi2.sum() > 30 else None,
+                       "within_one_sd_share": round(float((np.abs(y2 - e2) <= np.std(y1 - (a1 + b1 * x1))).mean()), 3)}
+    out["Q4b_day_estimate_constants"] = {"grid_min": grid, "share": sh_l, "beta": be_l, "resid_sd": sd_l,
+                                         "out_of_sample": oos, "sessions_used": int(len(use))}
+
     # Q5 the live 60-minute bar: straight-line projection after 15, 30, 45 minutes
     b["in_bar"] = b["mins"] - 60 * b["slot60"]
     tot60 = b.groupby(["ticker", "day", "slot60"])["volume"].transform("sum")

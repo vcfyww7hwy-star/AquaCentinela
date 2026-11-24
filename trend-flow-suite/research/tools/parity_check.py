@@ -56,6 +56,8 @@ def compare(tv: pd.DataFrame, script: str, intraday: bool, warmup: int, rtol: fl
         key_col = _find(tv.columns, "dbg_key")                    # slot keys as the script computed them
         keys = (pd.to_numeric(tv[key_col], errors="coerce").fillna(0).round().astype("int64").to_numpy()
                 if key_col is not None else None)
+        if intraday and keys is None:
+            return False, [{"series": "dbg_key", "status": "missing in export (needed for intraday charts)"}]
         ours = relative_volume(tv[COLS], intraday=intraday, keys=keys)
     else:
         ctx_col = _find(tv.columns, "dbg_ctx_dir")

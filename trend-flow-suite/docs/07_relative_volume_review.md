@@ -101,7 +101,7 @@ units of the stock's own volatility. Intervals are 95%, month-block bootstrap, 2
 | E13 | Best definition of normal volume | Clipped average of log volume: centred at 0.96–0.98, 4–6% lower forecast error (all from centring), spike bias cut by 68–82% on bars 11–20. Audit: the reference change is supported; the z-score flag is a matter of design, not of evidence |
 | E14 | Does volume predict volatility beyond price? | Raw: +11–15% over 10 bars after a 2× day. Beyond a price baseline that includes the day's range: at most ±2.5% per doubling. Audit and a re-check on EM: see section 1, point 4 |
 | E18 | Old and new definitions on all six sets, including 2018–2026 | Old mark on EM −0.009 [−0.050, +0.031]. v3 mark: A +0.052, B +0.083, DJ +0.057, LH +0.069 [+0.010, +0.131], MS +0.083 [+0.040, +0.127], EM +0.034 [−0.006, +0.079]; EM by period +0.058 / +0.075 / +0.004. Heavy volume without a price move away from lows: nothing. High-volume premium (Gervais et al. design): +0.1% over 20 days before 2014, nil in 2018–2026. Strong moves on unusual volume: no continuation or reversal |
-| E19 | Real intraday data | Per-slot reference reads 1.01–1.04 in all seven 60-minute slots; a reference blind to the time of day reads 1.33 at the open, 0.74 at midday, 1.74 at the close and flags 25–37% of opening and closing bars. Volume share by slot: 17.5 / 13.1 / 11.4 / 10.5 / 11.5 / 14.2 / 21.8%. Projection of the day from the volume so far, rank correlation with the final value: 0.63 at 10:30, 0.71 at 11:30, 0.81 at 13:00, 0.91 at 14:30 |
+| E19 | Real intraday data | Per-slot reference reads 1.01–1.04 in all seven 60-minute slots; a reference blind to the time of day reads 1.33 at the open, 0.74 at midday, 1.74 at the close and flags 25–37% of opening and closing bars. Volume share by slot: 17.5 / 13.1 / 11.4 / 10.5 / 11.5 / 14.2 / 21.8%. Projection of the day from the volume so far, rank correlation with the final value: 0.63 at 10:30, 0.71 at 11:30, 0.81 at 13:00, 0.91 at 14:30. A plain projection (volume so far ÷ usual share) overshoots when it reads high: the day ended lower in 72–88% of the cases where it read 2× or more. The pane's estimate uses a fitted slope below 1; on hold-out sessions its error (in logs) is 0.40 at 10:30, 0.33 at 11:30, 0.25 at 13:00, 0.16 at 14:30, lower than the plain projection at every hour |
 | Calendar check | Mechanical volume | Quarterly expiry days: median stock at 1.19× (LH), 1.31× (MS), 1.76× (EM); share of stocks at 2× or more: 8.9%, 21.3%, 39.9% against 3.6–5.1% on other days. Monthly expiries: no effect |
 
 Not run (the session's usage limit stopped them): a full study of the per-stock continuation regime,
@@ -119,18 +119,37 @@ main questions in a simpler form.
 | Seeding | First observation | None: warm-up of 10 (intraday) or 25 (daily) earlier observations | Zero and outlier seeds |
 | Bar in progress | Shown like a closed bar | Grey; "so far" in the table | E19 |
 | Intraday | Bar-by-bar only | Adds session pace (cumulative volume against normal by this time) | E19 |
-| Daily, bar in progress | Nothing | Rough estimate of the day with a "likely" range | E19 |
+| Daily, bar in progress | Nothing | Estimate of the day with the range that held two days in three; US sessions, minute 30 to 360, not on half days | E19 |
 | Mark "A, absorption at lows" | On | Renamed "H, heavy volume, small move, stretched low"; **off** | E18 |
 | Quarterly expiry days | Not distinguished | Tinted; unusual-volume alert skipped by default | Calendar check |
 | Status table | Relative volume, move, last mark | Adds the unusual level, pace, 20-day dollar volume, last unusual bar, data feed check | Review |
 | Climax marks | Optional | Removed | No information (E05, E08) |
 
-## 6. Not verified
+## 6. Review of the v3 script before release
 
-- **Compilation in TradingView.** The script passes a syntax parse and two line-by-line reviews.
+Two reviewers read the first v3 script line by line, one as the compiler and one against the Python
+twin (a literal transcription of the Pine functions agrees with the twin to 1e-12). Defects found
+and fixed:
+
+| Defect | Fix |
+|---|---|
+| The session pace of a bar in progress divided partial volume by the normal for the end of the bar (a normal day read 0.6 at 10:35) | The pane shows the last closed bar's pace while a bar is in progress |
+| The pace alert compared with the previous session's last value and missed a second heavy day | Compared within the session |
+| The day estimate overshot when it read high, and ran on half days and non-US sessions | Fitted slope, tighter gate (see E19) |
+| Quarterly-expiry tint and alert skip were documented but not coded | Coded |
+| "20-day" dollar volume was wrong on multi-day charts; Heikin Ashi lost its time-of-day slots; the feed ratio was wrong with extended hours | Fixed |
+| Header and tooltips quoted the old mark's figures and "8.9 million" stock-days | Corrected: 6.4 million evaluated; mark H 0.05–0.08 in 2000–2017 |
+| 14 of 29 single-line mutants of the twin survived the tests | Tests added for marks, warm-up, half days, counting rules, the estimate, and script-twin constants |
+
+## 7. Not verified
+
+- **Compilation in TradingView.** The script passes a syntax parse. Two independent line-by-line
+  reviews found no compile error and estimated about 85% that it compiles as written.
 - **The data feed.** Run the four checks in the playbook before trusting any live reading.
 - **Half days.** Whether `time_close` reports the early close: read the 12:30 bar of a 1h chart on
-  27 Nov 2026 (13:00 close). The plot `dbg_key` should end in 30 for that bar.
+  27 Nov 2026 (13:00 close). The plot `dbg_key` should read 7500030 for that bar (7500060 on a normal
+  day).
+- **Bar state.** That the last bar is drawn grey while it is in progress and not after the close.
 - **Intraday history.** 49 sessions from one source; unusual-volume flags fired on 8–11% of 60-minute
   bars in that sample (earnings season, short history) against 4% on daily bars.
 - **Survivorship**, in every return result.

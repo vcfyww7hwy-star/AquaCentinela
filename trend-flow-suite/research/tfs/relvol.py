@@ -45,6 +45,30 @@ class RelVolParams:
     low_ext: float = 1.5            # extension <= -1.5 ATR
 
 
+# Daily bar in progress: estimate of the day's relative volume (E19, 858 liquid US stocks, 49 sessions of 2026).
+# Every 30 minutes from minute 30 to minute 360 of a 390-minute session: median share of the day's volume already
+# traded; slope of the final log relative volume on log(volume so far / normal / share); spread of the error.
+DAY_GRID = tuple(range(30, 361, 30))
+DAY_SHARE = (0.081, 0.152, 0.220, 0.287, 0.348, 0.410, 0.468, 0.527, 0.588, 0.652, 0.719, 0.798)
+DAY_BETA = (0.384, 0.519, 0.598, 0.653, 0.699, 0.740, 0.772, 0.798, 0.826, 0.850, 0.874, 0.902)
+DAY_SD = (0.455, 0.417, 0.387, 0.362, 0.336, 0.310, 0.284, 0.259, 0.230, 0.198, 0.162, 0.111)
+
+
+def day_estimate(rvol_so_far: float, elapsed_min: float):
+    """(estimate, low, high) of the day's final relative volume from the relative volume so far, or
+    (nan, nan, nan) outside minutes 30..360 or without volume. low/high = estimate * exp(-+ sd): about two
+    days in three. Pine twin: estRvol, estSd."""
+    if not (30.0 <= elapsed_min <= 360.0) or not (rvol_so_far > 0):
+        return math.nan, math.nan, math.nan
+    x = (elapsed_min - 30.0) / 30.0
+    i = max(0, min(len(DAY_GRID) - 2, int(math.floor(x))))
+    w = max(0.0, min(1.0, x - i))
+    lin = lambda a: a[i] * (1.0 - w) + a[i + 1] * w
+    est = math.exp(lin(DAY_BETA) * math.log(rvol_so_far / lin(DAY_SHARE)))
+    sd = lin(DAY_SD)
+    return est, est * math.exp(-sd), est * math.exp(sd)
+
+
 def slot_keys(index: pd.DatetimeIndex, intraday: bool, bar_minutes=None) -> np.ndarray:
     """Integer key of the time-of-day slot: (minutes after midnight of the bar's open) * 10000 +
     bar length in minutes. 0 on daily and higher timeframes. Pine twin: slotKey."""
@@ -136,11 +160,13 @@ def relative_volume(df: pd.DataFrame, intraday: bool = False, p: RelVolParams = 
     """Every series of the Relative Volume v3 pane. df: open, high, low, close, volume (DatetimeIndex).
     keys: optional slot keys taken from the script itself (plot dbg_key of a chart export)."""
     h, l, c, v = (df[k].to_numpy(dtype=float) for k in ("high", "low", "close", "volume"))
+    if intraday and keys is None and bar_minutes is None:
+        raise ValueError("intraday: pass bar_minutes or keys (the slot key includes the bar's length)")
     keys = slot_keys(df.index, intraday, bar_minutes) if keys is None else np.asarray(keys, dtype=np.int64)
     span = p.span_intraday if intraday else p.span_daily
     need = p.min_obs_intraday if intraday else p.min_obs_daily
     with np.errstate(divide="ignore", invalid="ignore"):
-        r = np.r_[np.nan, np.log(c[1:] / c[:-1])]
+        r = np.r_[np.nan, np.where((c[1:] > 0) & (c[:-1] > 0), np.log(c[1:] / c[:-1]), np.nan)]
         mu, s, n = log_level_lagged(v, keys, span, p.scale_span, p.clip, p.min_clip)
         ok = n >= need
         lv = np.where(v > 0, np.log(np.where(v > 0, v, 1.0)), np.nan)
@@ -159,7 +185,8 @@ def relative_volume(df: pd.DataFrame, intraday: bool = False, p: RelVolParams = 
         quiet = zv <= p.quiet_z
         heavy_no_move = unusual & (np.abs(z) <= p.small_move)
         heavy_no_move_low = heavy_no_move & (ext <= -p.low_ext)
-        # session pace (intraday): volume of the session so far / what is normal by this time of day
+        # session pace (intraday): volume of the session so far / what is normal by this time of day.
+        # The session is taken as the calendar day: valid for sessions that do not cross midnight.
         pace = np.full(len(v), np.nan)
         if intraday:
             cum = pd.Series(np.nan_to_num(v), index=df.index).groupby(df.index.normalize()).cumsum().to_numpy()
