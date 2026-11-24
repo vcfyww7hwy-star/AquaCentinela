@@ -172,13 +172,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--panel", default=DEFAULT_PANEL)
     ap.add_argument("--sets", nargs="+", default=list(SETS))
+    ap.add_argument("--out", default="e18_relvol_v3_confirmation.json", help="file name under results/")
     a = ap.parse_args()
     res = {s: run_set(s, a.panel, 1800 + i) for i, s in enumerate(a.sets)}
     fam = [("P0 shipped mark on EM", res["EM"]["shipped_mark"]["fzd10"])] if "EM" in res else []
     fam += [(f"v3 mark on {s}", res[s]["v3_mark"]["fzd10"]) for s in a.sets]
     adj = holm([f[1]["p"] for f in fam])
     res["primary_family"] = [{"test": f[0], **f[1], "p_holm": adj[i]} for i, f in enumerate(fam)]
-    p = pathlib.Path(__file__).resolve().parents[1] / "results" / "e18_relvol_v3_confirmation.json"
+    p = pathlib.Path(__file__).resolve().parents[1] / "results" / a.out
     p.write_text(json.dumps(res, indent=1))
 
     def f(r):
