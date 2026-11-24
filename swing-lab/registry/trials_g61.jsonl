@@ -1,0 +1,1 @@
+{"ts_utc": "2026-11-11T23:32:44+00:00", "commit": "2694ff4", "hid": "G61", "family": "G61_post_lockbox", "definition": "R distribution of random entries", "params": {}, "universe": "", "partition": "ALL", "metric": "descriptive", "value": 0.0, "tstat": null, "n": null, "note": "after the lockbox; description, not evidence"}

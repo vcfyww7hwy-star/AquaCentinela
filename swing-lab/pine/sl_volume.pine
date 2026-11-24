@@ -1,0 +1,327 @@
+//@version=6
+// SL Volume (swing-lab), version 1.1
+//
+// How unusual is this bar's volume for this stock, and, during the session on a daily chart, how fast is today's
+// volume running against a typical day at the same time? Descriptive only: in the research behind it no volume
+// pattern predicted direction (swing-lab/docs/RESEARCH_LOG.md, entries 4 and 10), and relative volume added almost
+// nothing to ATR for the size of the next moves (G80). For this project it replaces the "Relative Volume" pane of
+// trend-flow-suite, which is left unchanged.
+//
+//   Columns    volume / typical volume. Typical = the MEDIAN of the previous bars (daily and higher) or of the
+//              previous sessions' bars at the same clock time (intraday). 1.0 = a typical bar.
+//   Today      daily chart, US stocks: while the session is open the forming column shows today's PACE (volume so
+//              far against a typical day by the same time); at the close, and until the daily bar settles
+//              overnight, it shows the day's volume against typical days measured on the same 5-minute data.
+//   vs market  the stock's ratio divided by the index's (default SPY): near 1 the whole market traded heavily.
+//   E          an earnings report on this bar (after-close reports trade the next day).
+//
+// Why 5-minute data for today: TradingView's settled daily bars carry consolidated volume, but the daily bar at the
+// close is provisional (74% of the settled volume in one measurement, AAPL 11 Nov 2026), and without NASDAQ/NYSE
+// real-time data intraday bars carry only Cboe's trades (about 6% of the total). Comparing 5-minute volume with
+// 5-minute volume compares like with like on either feed (swing-lab/docs/_raw/pine_plans.md, section 10).
+indicator("SL Volume", shorttitle = "SL Volume", overlay = false, precision = 2)
+
+// ─────────────────────────────────────────────────────────────── inputs
+string G1 = "Typical volume"
+int    i_nDaily = input.int(50, "Daily and higher: bars in the median", minval = 10, maxval = 500, group = G1, display = display.none)
+int    i_nIntra = input.int(20, "Intraday: sessions in the median, per time of day", minval = 5, maxval = 60, group = G1, display = display.none)
+int    i_rankN  = input.int(250, "Daily and higher: bars for the rank", minval = 20, maxval = 1000, group = G1, display = display.none,
+     tooltip = "The table says what share of this many earlier bars the current one beats (250 daily bars is about a year).")
+float  i_level  = input.float(2.0, "Unusual at ×", minval = 1.2, step = 0.1, group = G1,
+     tooltip = "Columns at or above this multiple of a typical bar are drawn solid. In liquid US stocks about 1 day in 20 reaches 2× the median (G80).")
+
+string G2 = "Today (daily chart, US stocks)"
+bool   i_pace  = input.bool(true, "Show today's pace while the session is open", group = G2)
+int    i_paceN = input.int(20, "Sessions in the typical intraday curve", minval = 10, maxval = 40, group = G2, display = display.none)
+
+string G3 = "Market"
+bool   i_mktOn = input.bool(true, "Compare with the index", group = G3)
+string i_mkt   = input.symbol("AMEX:SPY", "Index", group = G3, display = display.none)
+
+string G4 = "Alerts (one alert: Any alert() function call)"
+bool   i_alUnusual = input.bool(true, "At the close of an unusual bar", group = G4)
+bool   i_alExt     = input.bool(false, "Also on extended-hours bars (intraday)", group = G4)
+bool   i_alPace    = input.bool(false, "During the session, when today's pace reaches", group = G4, inline = "p")
+float  i_paceLevel = input.float(2.5, "", minval = 1.2, step = 0.1, group = G4, inline = "p",
+     tooltip = "Daily chart, US stocks. Sent at most once a day, and only after the first hour: before 10:30 a pace of 2 ended at 2 or more only 4 times in 10 (G81, consolidated hourly data; on the free feed the pace counts Cboe trades only and is noisier). It reads a bar that is still forming: a reason to look, not to trade.")
+
+string G5 = "Look"
+bool   i_showE    = input.bool(true, "Mark earnings reports (E)", group = G5)
+string i_tablePos = input.string("Top left", "Table", options = ["Top left", "Top right", "Bottom left", "Bottom right", "Off"], group = G5, display = display.none,
+     tooltip = "Top left covers the oldest bars; the newest column, the one you read, stays clear.")
+string i_textSize = input.string("Small", "Text size", options = ["Tiny", "Small", "Normal"], group = G5, display = display.none)
+color  i_cUpIn    = input.color(#4C8BF5, "Up bar", group = G5)
+color  i_cDnIn    = input.color(#F0A030, "Down bar", group = G5)
+
+// colours: as chosen on a dark chart, darkened on a light one
+bool LIGHT_BG = 0.299 * color.r(chart.bg_color) + 0.587 * color.g(chart.bg_color) + 0.114 * color.b(chart.bg_color) > 140
+f_ink(color c) =>
+    LIGHT_BG ? color.rgb(0.62 * color.r(c), 0.62 * color.g(c), 0.62 * color.b(c)) : c
+color C_UP    = f_ink(i_cUpIn)
+color C_DN    = f_ink(i_cDnIn)
+color C_FG    = chart.fg_color
+color C_MUTED = color.new(chart.fg_color, 45)
+
+int  tfSec   = timeframe.in_seconds()
+bool isIntra = tfSec < 86400
+bool isDaily = tfSec == 86400
+bool isNY    = syminfo.timezone == "America/New_York"
+bool hasVol  = ta.cum(nz(volume)) > 0
+bool live    = not barstate.isconfirmed                  // the bar is still forming
+bool isIdx   = syminfo.prefix == syminfo.prefix(i_mkt) and syminfo.ticker == syminfo.ticker(i_mkt)
+bool mktOn   = i_mktOn and not isIdx and not isIntra and isNY
+
+// ─────────────────────────────────────────────────────────────── typical volume, daily and higher: median of the previous bars
+float typD  = ta.median(volume, i_nDaily)[1]
+float rankD = ta.percentrank(volume, i_rankN)            // % of the previous i_rankN bars at or below this one
+
+// ─────────────────────────────────────────────────────────────── typical volume, intraday: median per clock time
+// The key is the bar's clock time on the exchange, so a missing bar (a halt, an illiquid stock, the pre-market) cannot
+// shift the later bars of the day into the wrong slot. A bar is added to its slot only once it is closed.
+type Slot
+    array<float> vals
+
+var map<int, Slot> slots = map.new<int, Slot>()
+int   key   = hour(time, syminfo.timezone) * 60 + minute(time, syminfo.timezone)
+int   minI  = math.max(5, int(i_nIntra / 2))
+float typI  = na
+float rankI = na
+int   nI    = 0
+if isIntra
+    Slot s = slots.contains(key) ? slots.get(key) : na
+    if not na(s)
+        nI := s.vals.size()
+        if nI >= minI
+            typI := s.vals.median()
+            int below = 0
+            for x in s.vals
+                below += x <= volume ? 1 : 0
+            rankI := 100.0 * below / nI
+    if barstate.isconfirmed and volume > 0
+        if na(s)
+            s := Slot.new(array.new<float>())
+            slots.put(key, s)
+        s.vals.push(volume)
+        if s.vals.size() > i_nIntra
+            s.vals.shift()
+
+float typ   = isIntra ? typI : typD
+float ratio = typ > 0 ? volume / typ : na
+float rank  = isIntra ? rankI : rankD
+
+// ─────────────────────────────────────────────────────────────── today from 5-minute data (daily chart, US symbols)
+// One curve per past session: cumulative regular-session volume at the end of each 5-minute slot from 09:30.
+int GRID = 78
+type DayCurve
+    array<float> cum
+
+bool   curvesOn = isDaily and isNY
+string symReg   = ticker.modify(syminfo.tickerid, session.regular)
+string idxReg   = ticker.new(syminfo.prefix(i_mkt), syminfo.ticker(i_mkt), session.regular)
+[ltT, ltV] = request.security_lower_tf(symReg, "5", [time, volume], ignore_invalid_symbol = true, ignore_invalid_timeframe = true, calc_bars_count = 4000)
+[ixT, ixV] = request.security_lower_tf(idxReg, "5", [time, volume], ignore_invalid_symbol = true, ignore_invalid_timeframe = true, calc_bars_count = 4000)
+
+f_slotOf(int t) =>
+    math.max(0, math.min(GRID - 1, int(math.floor((hour(t, syminfo.timezone) * 60 + minute(t, syminfo.timezone) - 570) / 5.0))))
+
+f_curve(array<int> ts, array<float> vs) =>
+    array<float> cum = array.new<float>(GRID, na)
+    float run = 0.0
+    for j = 0 to array.size(vs) - 1
+        run += nz(array.get(vs, j))
+        array.set(cum, f_slotOf(array.get(ts, j)), run)
+    float last = 0.0
+    for g = 0 to GRID - 1                                 // slots without a 5-minute bar carry the previous total
+        float x = array.get(cum, g)
+        if na(x)
+            array.set(cum, g, last)
+        else
+            last := x
+    DayCurve.new(cum)
+
+// [pace, share of a typical day done] for the volume so far, against past curves at the same point of the day;
+// the current 5-minute slot counted pro rata by the clock. Slot 0 is skipped: trading right after the open is too
+// front-loaded for a pro-rata estimate.
+f_pace(array<DayCurve> cs, array<int> ts, array<float> vs) =>
+    float p  = na
+    float sh = na
+    int   sl = f_slotOf(array.last(ts))
+    if sl >= 1
+        float frac = math.max(0.0, math.min(1.0, (timenow - array.last(ts)) / 300000.0))
+        array<float> atNow = array.new<float>()
+        array<float> share = array.new<float>()
+        for d in cs
+            float prev = d.cum.get(sl - 1)
+            float at   = prev + frac * (d.cum.get(sl) - prev)
+            float tot  = d.cum.get(GRID - 1)
+            atNow.push(at)
+            if tot > 0
+                share.push(at / tot)
+        float tn = atNow.median()
+        p  := tn > 0 ? array.sum(vs) / tn : na
+        sh := share.size() > 0 ? share.median() : na
+    [p, sh]
+
+// the whole day's 5-minute volume against the median of past sessions' totals
+f_day(array<DayCurve> cs, array<float> vs) =>
+    array<float> tots = array.new<float>()
+    for d in cs
+        tots.push(d.cum.get(GRID - 1))
+    float mt = tots.median()
+    mt > 0 ? array.sum(vs) / mt : na
+
+var array<DayCurve> curves    = array.new<DayCurve>()
+var array<DayCurve> idxCurves = array.new<DayCurve>()
+
+// the last daily bar while its volume is not settled: forming, or closed less than 16 hours ago
+bool provisional = curvesOn and barstate.islast and not live and timenow - time_close < 16 * 3600000
+bool todayBar    = curvesOn and barstate.islast and (live or provisional)
+bool haveCurves  = curves.size() >= 10
+bool haveToday   = array.size(ltV) > 0
+
+float pace = na, float dayShare = na, float day5 = na, int paceSlot = na
+float idxPace = na, float idxDay5 = na
+if todayBar and haveCurves and haveToday              // computed before today's curve is added below
+    paceSlot := f_slotOf(array.last(ltT))
+    if live
+        [p, sh] = f_pace(curves, ltT, ltV)
+        pace     := p
+        dayShare := sh
+    else
+        day5 := f_day(curves, ltV)
+    if mktOn and idxCurves.size() >= 10 and array.size(ixV) > 0
+        if live
+            [ip, ish] = f_pace(idxCurves, ixT, ixV)
+            idxPace := ip
+        else
+            idxDay5 := f_day(idxCurves, ixV)
+
+if curvesOn and barstate.isconfirmed and last_bar_index - bar_index <= 3 * i_paceN
+    if haveToday
+        curves.push(f_curve(ltT, ltV))
+        if curves.size() > i_paceN
+            curves.shift()
+    if mktOn and array.size(ixV) > 0
+        idxCurves.push(f_curve(ixT, ixV))
+        if idxCurves.size() > i_paceN
+            idxCurves.shift()
+
+// ─────────────────────────────────────────────────────────────── the number shown for each bar
+// Today, while unsettled: the 5-minute basis (pace while forming, day5 once closed). Every other bar: settled volume.
+bool  use5   = todayBar and not na(live ? pace : day5)
+float shown  = use5 ? (live ? pace : day5) : ratio
+float rankSh = use5 ? na : rank                          // the rank needs settled volume
+
+// ─────────────────────────────────────────────────────────────── market: the index's ratio by the same method
+f_ratioD() =>
+    float t = ta.median(volume, i_nDaily)[1]
+    t > 0 ? volume / t : na
+float mktSettled = mktOn ? request.security(i_mkt, timeframe.period, f_ratioD(), ignore_invalid_symbol = true) : na
+float mktShown   = not mktOn ? na : todayBar ? (live ? idxPace : idxDay5) : mktSettled
+float ownRatio   = todayBar ? (use5 and mktShown > 0 ? shown / mktShown : na) : (not na(ratio) and mktShown > 0 ? ratio / mktShown : na)
+
+// ─────────────────────────────────────────────────────────────── earnings
+float eAct  = request.earnings(syminfo.tickerid, earnings.actual, barmerge.gaps_on, ignore_invalid_symbol = true)
+bool  ePrev = not na(eAct[1])                            // read on every bar, so its history exists on the last bar
+bool  eBar  = not isIntra and not na(eAct)
+bool  eLast = not isIntra and ePrev
+
+// ─────────────────────────────────────────────────────────────── plots
+bool  solid  = shown >= i_level
+color colCol = live and not use5 ? color.new(C_MUTED, 40) : use5 ? color.new(C_FG, solid ? 20 : 60) :
+     close >= close[1] ? color.new(C_UP, solid ? 0 : 50) : color.new(C_DN, solid ? 0 : 50)
+float colVal = live ? (use5 ? (i_pace ? pace : na) : ratio) : shown        // a forming bar without a pace: its partial ratio, in grey
+plot(hasVol ? (use5 ? math.min(colVal, 5.0) : colVal) : na, "Volume vs typical", color = colCol, style = plot.style_columns)
+hline(1.0, "Typical bar (median)", color = color.new(color.gray, 30), linestyle = hline.style_solid)
+hline(i_level, "Unusual", color = color.new(color.gray, 60), linestyle = hline.style_dotted)
+plotshape(i_showE and eBar, "Earnings report", style = shape.labelup, location = location.bottom, color = color.new(C_MUTED, 30),
+     text = "E", textcolor = chart.bg_color, size = size.tiny)
+
+plot(shown,    "Ratio to typical",  display = display.data_window)
+plot(typ,      "Typical volume",    display = display.data_window)
+plot(rank,     "Rank pct",          display = display.data_window)
+plot(pace,     "Pace",              display = display.data_window)
+plot(mktShown, "Index ratio",       display = display.data_window)
+plot(ownRatio, "Ratio vs index",    display = display.data_window)
+
+// ─────────────────────────────────────────────────────────────── wording
+f_x(float x) =>
+    na(x) ? "-" : str.tostring(math.floor(x * 10.0) / 10.0, "0.0") + "×"       // rounded down: "2.0×" is always at least 2
+
+f_rankTxt(float r) =>
+    na(r) ? "" : r >= 100.0 ? (isIntra ? "highest of its time slot" : "highest of the last " + str.tostring(i_rankN)) :
+     "beats " + str.tostring(r, "0") + "% of " + (isIntra ? "its time slot" : "the last " + str.tostring(i_rankN))
+
+string ET = isNY ? " ET" : ""
+
+// ─────────────────────────────────────────────────────────────── alerts
+bool regularBar = not isIntra or session.ismarket or i_alExt
+bool unusual    = hasVol and barstate.isconfirmed and shown >= i_level and regularBar
+if i_alUnusual and unusual
+    alert(str.format("{0} ({1}): volume {2} a typical bar{3}{4}{5}{6}. Descriptive only: volume did not predict direction in the tests.",
+         syminfo.ticker, timeframe.period, f_x(shown),
+         use5 ? " (from 5-minute data; the daily bar settles overnight)" : "",
+         rankSh >= 0 ? ", " + f_rankTxt(rankSh) : "",
+         na(ownRatio) ? "" : "; " + syminfo.ticker(i_mkt) + " " + f_x(mktShown) + ", so " + f_x(ownRatio) + " the market's",
+         eBar ? "; earnings report on this bar" : eLast ? "; earnings report on the previous bar (after-close reports trade the next day)" : ""),
+         alert.freq_once_per_bar_close)
+if i_alPace and todayBar and live and pace >= i_paceLevel and paceSlot >= 12
+    alert(str.format("{0}: volume running at {1} a typical day by {2}{3} (about {4}% of a typical day done){5}. Bar still forming.",
+         syminfo.ticker, f_x(pace), str.format_time(timenow, "HH:mm", syminfo.timezone), ET, str.tostring(100.0 * dayShare, "0"),
+         na(ownRatio) ? "" : "; " + f_x(ownRatio) + " the market's pace"), alert.freq_once_per_bar)
+
+// ─────────────────────────────────────────────────────────────── table
+f_pos(string p) =>
+    p == "Top right" ? position.top_right : p == "Bottom right" ? position.bottom_right : p == "Bottom left" ? position.bottom_left : position.top_left
+
+string TS = i_textSize == "Tiny" ? size.tiny : i_textSize == "Small" ? size.small : size.normal
+var table tb = na
+
+f_row(int r, string k, string v, color vc, string tip) =>
+    table.cell(tb, 0, r, k, text_halign = text.align_left, text_size = TS, text_color = C_MUTED, tooltip = tip)
+    table.cell(tb, 1, r, v, text_halign = text.align_left, text_size = TS, text_color = vc, tooltip = tip)
+
+if barstate.islast and i_tablePos != "Off"
+    if not na(tb)
+        table.delete(tb)
+    tb := table.new(f_pos(i_tablePos), 2, 8, bgcolor = color.new(chart.bg_color, 30), frame_color = color.new(chart.fg_color, 78), frame_width = 1, border_width = 0)
+    color acc = f_ink(#4C8BF5)
+    table.cell(tb, 0, 0, "SL VOLUME", text_halign = text.align_left, text_size = TS, text_color = color.white, bgcolor = acc, text_formatting = text.format_bold)
+    table.cell(tb, 1, 0, syminfo.ticker + " · " + timeframe.period, text_halign = text.align_left, text_size = TS, text_color = color.white, bgcolor = acc)
+    int r = 1
+    if not hasVol
+        f_row(r, "Data", "no volume for this symbol", f_ink(#F0A030), "Use a symbol with volume: SPY rather than the SPX index.")
+        r += 1
+    else
+        string what = isIntra ? "This bar" : isDaily ? (live or provisional ? "Today" : "Last session") : tfSec == 604800 ? "This week" : "This bar"
+        string tipSettled = isIntra ? "Volume against the median of the last " + str.tostring(i_nIntra) + " sessions' bars at this clock time. On the free data feed intraday bars carry only Cboe's trades on both sides, so the ratio still compares like with like." :
+             "Settled volume against the median of the previous " + str.tostring(i_nDaily) + " bars; then the share of the previous " + str.tostring(i_rankN) + " bars it beats."
+        if na(typ) and not use5
+            f_row(r, what, isIntra ? "needs " + str.tostring(minI) + " sessions at this time (has " + str.tostring(nI) + ")" :
+                 "needs " + str.tostring(i_nDaily + 1) + " bars (has " + str.tostring(bar_index + 1) + ")", C_MUTED, tipSettled)
+        else if live and use5
+            f_row(r, what, f_x(pace) + " pace by " + str.format_time(timenow, "HH:mm", syminfo.timezone) + ET + (na(dayShare) ? "" : " · " + str.tostring(100.0 * dayShare, "0") + "% of a day done") +
+                 (paceSlot < 12 ? " · rough in the first hour" : ""), pace >= i_level ? C_FG : C_MUTED,
+                 "Regular-session volume so far against the median of the last " + str.tostring(i_paceN) + " sessions at the same time of day, both from 5-minute bars. In 2024 hourly data a pace of 2 or more read at 10:30 ended at 2 or more 4 times in 10; read at 12:30, 6 times in 10 (G81). On the free feed it counts Cboe trades only and is noisier. On 13:00 early-close days the share of the day done is understated.")
+        else if live
+            f_row(r, what, todayBar and not haveCurves ? "pace needs 10 sessions of 5-minute data" : todayBar and not haveToday ? "no 5-minute data yet today" :
+                 todayBar and paceSlot < 1 ? "pace from 09:35" + ET : "forming", C_MUTED,
+                 "The bar is not finished; its volume is partial.")
+        else if use5
+            f_row(r, what, f_x(day5) + " typical · from 5-minute data", day5 >= i_level ? C_FG : C_MUTED,
+                 "At the close TradingView's daily bar is still provisional (74% of the settled volume in one measurement), so today's volume is compared with typical days on the same 5-minute data. The column switches to the settled figure the next morning.")
+        else
+            string rt = f_rankTxt(rank)
+            f_row(r, what, f_x(ratio) + " typical" + (rt == "" ? "" : " · " + rt), ratio >= i_level ? C_FG : C_MUTED, tipSettled)
+        r += 1
+        if i_mktOn and not isIntra
+            f_row(r, "vs market", isIdx ? "this chart is the index" : not isNY ? "US symbols only" : na(ownRatio) ? "-" : f_x(ownRatio) + " · " + syminfo.ticker(i_mkt) + " " + f_x(mktShown), C_MUTED,
+                 "This stock's ratio divided by the index's, measured the same way. Near 1: the whole market traded heavily (Fed day, option expiry, index rebalancing). Well above 1: the volume is about this stock. Descriptive, not tested.")
+            r += 1
+        if eBar or eLast
+            f_row(r, "Earnings", eBar ? "report on this bar" : "report on the previous bar", C_MUTED, "Report days and the day after carry the heaviest volume of the quarter; that is expected, not news.")
+            r += 1
+    table.cell(tb, 0, r, "Descriptive", text_halign = text.align_left, text_size = size.tiny, text_color = C_MUTED,
+         tooltip = "Volume did not predict direction in the tests behind this script (swing-lab RESEARCH_LOG entries 4 and 10).")
+    table.cell(tb, 1, r, "no direction · hover a row", text_halign = text.align_left, text_size = size.tiny, text_color = C_MUTED,
+         tooltip = "Settled daily bars carry consolidated volume. Without NASDAQ/NYSE real-time data, intraday bars carry only Cboe's trades; this script compares intraday with intraday and settled with settled, so its ratios hold on either feed.")

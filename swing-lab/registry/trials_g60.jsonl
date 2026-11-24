@@ -1,0 +1,1 @@
+{"ts_utc": "2026-11-11T23:23:09+00:00", "commit": "2694ff4", "hid": "G60", "family": "G60_post_lockbox", "definition": "earnings gap odds by year and by known time of day", "params": {}, "universe": "", "partition": "ALL", "metric": "descriptive", "value": 0.0, "tstat": null, "n": null, "note": "after the lockbox; recalibration, not evidence"}

@@ -1,0 +1,681 @@
+{
+  "summary": "Four-lens review of the new SL Volume Pine script, each finding challenged by a skeptic",
+  "agentCount": 8,
+  "logs": [],
+  "result": [
+    {
+      "lens": "runtime",
+      "findings": [
+        {
+          "id": "VOL-RT-1",
+          "title": "eAct[1] is read only on the last bar, inside an `if` and the right side of a lazy `or`, so it may first run on a realtime bar with no history buffer behind it",
+          "severity": "minor",
+          "lines": "166-167, 212, 242",
+          "scenario": "Daily or weekly chart. You load the chart, or create the alert, while the market is open. The last bar is then a realtime bar, so `barstate.islast` is false on every historical bar and the table block (line 212) runs for the first time on that realtime bar. On that bar `eBar` is false (no report today), so the right side of the `or` on line 242 runs and reads `eAct[1]`. Nothing else in the script reads eAct with an offset, so no historical bar ever made that reference. If the runtime sizes eAct's buffer only from references it saw on historical bars, the read stops the script with \"The requested historical offset (1) is beyond the historical buffer's limit\". The pane, the table and both alerts on that chart would then stop. If you load or create the alert while the market is closed, the last bar is historical: the reference happens there and the runtime can restart with a bigger buffer, so the problem would not show up when testing in the evening.",
+          "why": "docs/_raw/pine_language.md H3 (Execution model, historical buffers): the runtime \"analyzes all the historical references that occur while executing the script on the dataset's first 244 bars\" and \"does not adjust any historical buffers during executions on new bars from the realtime data feed\". B20 (error RE10143): a `[]` offset that history never used \"fails on the first realtime tick\". B4: `or` is lazy in v6, so `eAct[1]` is skipped whenever `eBar` is true. Evidence the other way: the RE10143 page says scripts with constant historical offsets \"work without issues\", but it says nothing about a constant offset that first runs on a realtime bar. Not verified on a chart. The project hit the same open question in sl_risk_desk.pine (docs/_raw/pine_review_2026-11-12.json, review v2:8a3c7f3, `eInside[1]` and `timeUp[1]`). It was fixed there by reading every `[1]` at global scope (sl_risk_desk.pine lines 243-247). If the error occurs, it is a blocker. It is rated minor only because it is not established that it occurs.",
+          "fix": "Read the previous bar's earnings value on every bar, at global scope. After line 167 add:\n\n// read on every bar, so its history already exists when the last (possibly realtime) bar needs it\nbool  ePrev = not isIntra and not na(eAct[1])\n\nThen change line 242 to:\n\n        if eBar or ePrev\n\nLine 243 stays as it is. Nothing else reads eAct with an offset. close[1] on line 170 is evaluated on every historical bar, and ta.median(volume, i_nDaily)[1] on lines 68 and 160 runs on every bar of its context, so neither needs this change."
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "VOL-RT-1",
+          "verdict": "uncertain",
+          "severity": "minor",
+          "reason": "The execution path is confirmed. The only open question is whether the read fails, and only a chart run can settle that.\n\n(1) Line 212: on a chart loaded while the market is open, the last bar is the realtime bar. barstate.islast is false on every historical bar, so the table block first runs on that realtime bar. From memory, unverified: the reference manual says barstate.islast \"is true for all real-time bars in barset\", and barstate.islastconfirmedhistory refers to \"the bar immediately preceding the realtime bar if the market is open\". So the forming bar is not part of the historical run.\n\n(2) Line 242: on daily and weekly charts the `[1]` read is skipped on every historical bar, because the block never runs there. On the realtime bar, eBar is normally false, since gaps_on makes eAct na except on a report bar. `or` is lazy (docs/_raw/pine_language.md B4), so `not isIntra and not na(eAct[1])` is evaluated, and isIntra is false on these charts, so `eAct[1]` is read for the first time ever. On 1h and 4h charts `not isIntra` is false, the lazy `and` stops there, and those charts are not affected.\n\n(3) Nothing else references eAct with an offset. Line 167 uses offset 0, and plotshape and the alert use eBar. So no historical bar ever records a reference for eAct's buffer.\n\n(4) The side claims hold. close[1] on line 170 sits in the false branch of `live ? ...`, and live is false on every historical bar. Lines 68 and 160 run at global scope or inside the requested expression on every bar.\n\nWhat cannot be settled from the docs: H3 says buffers are sized from references \"that occur while executing\" on the first 244 bars, and \"does not adjust any historical buffers\" on realtime bars. B20 / RE10143 says an offset larger than anything used in history fails on the first realtime tick. Against that, the RE10143 page says constant offsets \"work without issues\", and no default or minimum buffer size is documented. The project left the identical case open in sl_risk_desk.pine (docs/_raw/pine_review_2026-11-12.json, verdict v2:a1d736a[7]: \"uncertain\"; docs/03_verification.md: \"open … Hardened\"). Nothing found here refutes or confirms it.\n\nThe point about testing in the evening is correct. A load or alert creation with the market closed reads the offset on a historical last bar, where a restart can enlarge the buffer, so the problem would stay hidden. From memory, unverified: server-side alert instances can also be reloaded during market hours, so creating the alert in the evening does not remove the risk.\n\nSeverity: minor while the failure is unestablished. If it does occur it is a blocker on daily and weekly charts: the pane, the table and both alerts stop, and the user cannot watch the screen. The fix costs nothing.",
+          "fix": "Read the previous bar's value unconditionally at global scope, so there is no lazy operator in front of it on any timeframe. After line 167 add:\n\n// read on every bar, so its history exists when the last (possibly realtime) bar first needs it\nbool  ePrev = not na(eAct[1])\n\nChange line 242 to:\n\n        if eBar or (not isIntra and ePrev)\n\nLine 243 stays as it is. The proposed variant also works: `bool ePrev = not isIntra and not na(eAct[1])` with `if eBar or ePrev`, because isIntra is constant on a given chart, so eAct[1] is still read on every daily and weekly bar. The unconditional read is simpler and does not depend on lazy evaluation.\n\nBoth variants compile with TradingView's compiler (tools/pine_compile.py) with 0 errors and 0 warnings. The patched files are /tmp/claude-0/-home-user-aquacentinela/94f008b0-b600-564c-8470-7cce270163c3/scratchpad/vol_rt1/vol_fixA.pine (recommended) and /tmp/claude-0/-home-user-aquacentinela/94f008b0-b600-564c-8470-7cce270163c3/scratchpad/vol_rt1/vol_fixB.pine (as proposed). The runtime behaviour is still unverified: the check needs a chart loaded on a daily timeframe while the market is open."
+        }
+      ]
+    },
+    {
+      "lens": "logic",
+      "findings": [
+        {
+          "id": "V1",
+          "title": "Daily 'unusual' alert at the close compares the live-built day volume with a median of settled end-of-day volumes",
+          "severity": "major",
+          "lines": "68-69, 100-101, 160-163, 186-192",
+          "scenario": "Daily chart with the 'Any alert() function call' alert running on the server. At each close the realtime daily bar is confirmed and `ratio = volume / typD` is computed from the volume TradingView built from live trades. typD and rankD come from settled daily bars. (a) On the free Cboe live feed, which PLAYBOOK row 'consolidated / Cboe only' treats as a real possibility, live volume is about 4-12% of consolidated. Ratio is then about 0.04-0.25 every day, so the 'unusual' alert never fires, and 'higher than X%' is about 0-5%. (b) With NASDAQ/NYSE live data but no ARCA, SPY's live volume is Cboe-only, so mktRatio ≈ 0.1. The message then says e.g. 'index 0.1×, so 20× the market's'. (c) Even with full live data, the confirmed bar can be short of the settled volume, so the ratio reads low. The gap is probably widest on the heavy days (closing-cross rebalances, option expiry) that the alert is meant to catch. (d) If the server alert keeps running for weeks without reloading, each session's live-built volume becomes history in ta.median(volume, 50)[1] and ta.percentrank. 'Typical' then drifts toward live-feed levels over about 25 sessions.",
+          "why": "pine_requests.md 4.6 [DOC S1]: intraday and end-of-day are separate feeds, and 'volume data may not be the same since some trades (block trades, OTC trades, etc.) may only be available at the end of the trading day… commonplace in stocks'. 01_pine_capabilities.md line 40 [DOC/MEASURED]: on Cboe One, intraday carries about 4-12% of consolidated volume. Line 41 [MEASURED]: 'In the minutes after 16:00 the realtime daily bar can show … a lower volume than the settled bar'. pine_requests.md 4.3 [DOC S1]: a requested symbol can 'temporarily fall out of synch with the chart on a realtime bar' (affects mktRatio at the closing tick). From memory, unverified: the closing-cross print can arrive after the bar is confirmed, and server alerts may not reload daily. PLAYBOOK row 'consolidated/consolidated: Everything works as designed' is contradicted by S1.",
+          "fix": "For today's daily bar, use the like-for-like 5-minute data the pace already loads, so both sides come from the same feed. Compute it BEFORE the curves push block, so today's curve is not yet included: `float ratio5 = na`, then `if isDaily and curves.size() >= 10 and array.size(ltV) > 0`: collect `d.cum.get(GRID - 1)` of every curve into `tots`, `float t5 = tots.median()`, `ratio5 := t5 > 0 ? array.sum(ltV) / t5 : na`. Build curves whenever isDaily (not only when i_pace is on). Use `float ratioAlert = isDaily and barstate.isrealtime ? ratio5 : ratio` in `unusual` and in the message. For the index, either add `request.security_lower_tf(ticker.modify(i_mkt, session.regular), \"5\", volume, ...)` with the same median-of-totals method, or drop the index clause from the daily at-close message and leave it to the next-morning table. Keep `volume / typD` for bars dated before today."
+        },
+        {
+          "id": "V2",
+          "title": "After the close on the same day, 'live' is false but the last daily bar's volume is not yet settled; the table shows it as final",
+          "severity": "minor",
+          "lines": "103, 224-231, 238-241",
+          "scenario": "The trader opens a daily chart at 16:30-23:00 ET on a trading day. From memory, unverified: once the session is closed, the last bar is a confirmed historical bar, so `live = false`. The table then prints 'Today 0.9× typical · above 40%' with full colour, and a 'vs market' row, as a final reading. That bar's volume is still the live-built one: on the Cboe live feed about a tenth of the true volume, e.g. 'Today 0.1× typical · above 1%'. The next morning, after settlement, the same bar reads e.g. 1.4×. On a holiday or weekend the separation is correct, because the bar has settled.",
+          "why": "01_pine_capabilities.md line 41 [MEASURED]: after 16:00 the realtime daily bar shows a lower volume than the settled bar. pine_requests.md 4.6 [DOC S1]: EOD volume includes trades the intraday feed lacks. `barstate.isconfirmed` tells whether the bar is complete, not whether its data have been settled. The behaviour of barstate on the last bar after the close is from memory (barstate.islastconfirmedhistory: 'true … on the dataset's last bar when market is closed'), unverified.",
+          "fix": "Add `bool provisional = isDaily and barstate.islast and not live and year(time, syminfo.timezone) == year(timenow, syminfo.timezone) and dayofyear(time, syminfo.timezone) == dayofyear(timenow, syminfo.timezone)`. When it is true, show the 5-minute ratio5 from V1, labelled 'Today (provisional, 5-min data)'. Hide the EOD rank and the 'vs market' row, or mark them provisional. Grey the column as for a live bar."
+        },
+        {
+          "id": "V3",
+          "title": "Pace alert can fire from 10:00, earlier than the playbook promises and earlier than any measured reliability",
+          "severity": "minor",
+          "lines": "44, 193",
+          "scenario": "A stock gaps on news. At 10:01 ET the last 5-minute bar opened at 10:00, so paceSlot = 6 and pace = 3.0 ≥ 2.5. The alert fires at 10:01. The trader cannot watch the screen and was told by the playbook that the alert comes 'only after the first hour'. Opening-auction volume dominates both today's running total and the typical curve at that time, so pace often falls back below 2 by 10:30-11:00. The alert is once per bar, so it cannot be repeated later in the day.",
+          "why": "Code: `paceSlot >= 6` means the last 5-minute bar opened at 10:00 or later (09:30 + 6×5 min). PLAYBOOK.md lines 324-325: 'The optional pace alert is sent at most once a day and only after the first hour.' The G81 table (PLAYBOOK lines 317-322) starts at 10:30, where only 4 in 10 paces of 2 or more end at 2 or more. Before 10:30 nothing was measured. The input tooltip ('not before the first 30 minutes') matches the code but not the playbook.",
+          "fix": "Use `paceSlot >= 12` (10:30 or later) and change the tooltip to 'not before 10:30 ET'. Or make the start time an input, default 10:30, and keep the playbook in step."
+        },
+        {
+          "id": "V4",
+          "title": "Turning off 'Show today's pace' silently disables the pace alert",
+          "severity": "minor",
+          "lines": "120, 121, 141, 193",
+          "scenario": "The trader unticks 'Show today's pace' (group 'Pace') to remove the dot, but leaves 'During the session, when today's pace reaches 2.5' ticked (group 'Alerts'). `paceUsable` is then false, so curves are never built, pace is always na, and `if i_alPace and paceUsable …` never runs. The alert is created without any warning and never fires.",
+          "why": "`paceUsable = isDaily and i_pace and syminfo.timezone == \"America/New_York\"`. The display input gates the calculation that the alert depends on. The 'Alerts are snapshots of inputs' fact (01_pine_capabilities.md line 21) means the dead state persists for the life of the alert.",
+          "fix": "Split the calculation from the display: `bool paceCalc = isDaily and (i_pace or i_alPace) and syminfo.timezone == \"America/New_York\"`. Use paceCalc at lines 121, 141 and 193. Keep `i_pace` only for the dot (line 174) and the table row (line 233)."
+        },
+        {
+          "id": "V5",
+          "title": "After an after-close report, the alert for the next day's heavy volume says nothing about earnings, though the table does",
+          "severity": "minor",
+          "lines": "166-167, 192, 242-243",
+          "scenario": "The company reports Tuesday after the close. request.earnings puts the value on Tuesday's bar, the bar where it was published. Wednesday trades 4× typical. At Wednesday's close the alert reads 'volume 4.0× a typical bar, higher than 99% of the last 250 bars; index 1.1×, so 3.6× the market's.' with no earnings clause, because only `eBar` (Wednesday) is checked. The chart table says 'Earnings: report on the previous bar'. The trader, who reads only the alert, sees unexplained heavy volume on the heaviest day of the quarter. On the server the live placement of an after-close value is undocumented and could also miss Tuesday's confirmed bar.",
+          "why": "pine_requests.md 6.2 [DOC S10]: 'the new value is returned on the bar where the report was published'. [DOC S11]: earnings icons 'are placed along the X-axis on the report date'. Section 15 item 2: the realtime placement is not verified. The alert builds its clause from `eBar` alone (line 192), while the table also checks `eAct[1]` (line 242).",
+          "fix": "Compute globally `bool ePrev = not isIntra and not na(eAct[1])`. In the alert use `eBar ? \"; earnings report on this bar\" : ePrev ? \"; earnings report on the previous bar (after-close reports trade the next day)\" : \"\"`. Use the same ePrev at line 242."
+        },
+        {
+          "id": "V6",
+          "title": "Intraday 'unusual' alert fires on thin pre/post-market bars and on every hour of a heavy day",
+          "severity": "minor",
+          "lines": "78, 92-98, 186-187",
+          "scenario": "A 1h chart with 'Extended trading hours' on. The clock-time keys create slots for 04:00-09:00 and 16:00-19:00, whose medians are a few thousand shares, and lumpy, especially on the Cboe feed. Any news, or the post-earnings evening, pushes those bars past 2×. Alerts then arrive at 17:00, 18:00, 19:00 and 05:00, 06:00 … On an earnings reaction day, every regular-session hour is also ≥ 2× its slot. The result is up to 7 regular plus about 9 extended alerts for one stock on one day, all saying the same thing.",
+          "why": "`unusual = hasVol and barstate.isconfirmed and ratio >= i_level` has no session gate and no once-per-session gate. The per-clock-time median (lines 78-98) treats pre/post-market slots like regular ones. alert.freq_once_per_bar_close fires once per bar, not once per day (01_pine_capabilities.md line 20).",
+          "fix": "Require `(not isIntra or session.ismarket)` in `unusual` (session.ismarket compiled, pine_requests.md compile log t6). Optionally, alert only on the first unusual bar of each session: `var int lastAlertDay = na`, fire only if `dayofyear(time, syminfo.timezone) != lastAlertDay`, then set it inside the alert block (only on confirmed bars)."
+        },
+        {
+          "id": "V7",
+          "title": "The table labels the bar 'Today' on weekly charts and on the previous session when the market is closed",
+          "severity": "minor",
+          "lines": "224-231",
+          "scenario": "Weekly chart on a Wednesday: the row reads 'Today forming: 0.4× so far'. After the week closes it reads 'Today 1.6× typical · above 80%'. That is the week's volume against the median of 50 weeks, which a reader can take for today's volume. Daily chart opened on Saturday or on Thanksgiving: 'Today 1.2× typical' describes Friday's or Wednesday's session.",
+          "why": "`string what = isIntra ? \"This bar\" : \"Today\"` treats every non-intraday timeframe, and the last bar whatever its date, as today.",
+          "fix": "Set `what` as follows. isIntra: \"This bar\". isDaily, and the bar's exchange date equals timenow's: \"Today\". isDaily otherwise: \"Last session \" + str.format_time(time, \"EEE d MMM\", syminfo.timezone). Weekly: \"This week\". Other timeframes: \"This bar\"."
+        },
+        {
+          "id": "V8",
+          "title": "'· above X%' next to '× typical' reads as 'X% above typical'",
+          "severity": "cosmetic",
+          "lines": "229",
+          "scenario": "The table prints 'Today 1.4× typical · above 73%'. A natural reading is 'volume 73% above typical', which contradicts 1.4×. What it means is that today's volume is at or above 73% of the previous 250 days. On a record day it prints 'above 100%'.",
+          "why": "ta.percentrank (from memory, unverified: 'the percents of how many previous values was less than or equal to the current value', previous `length` bars, current bar excluded) gives the share of earlier bars at or below. The tooltip and the alert ('higher than X% of the last 250 bars') word it correctly; the terse table text does not. Because ties are counted, 'above' is very slightly generous, which is immaterial for volume.",
+          "fix": "Print e.g. '· beats ' + str.tostring(rank, \"0\") + '% of last ' + str.tostring(i_rankN) + ' bars' (intraday: '… of same-time bars'). Or print a rank: 'rank ' + str.tostring(math.round(rank)) + '/100'."
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "V1",
+          "verdict": "confirmed",
+          "severity": "major",
+          "reason": "Part (a) happens as described, and the project's own docs back it. Line 101 divides the realtime daily bar's volume by typD (line 68). typD is a median of settled end-of-day bars, which carry consolidated volume. 01_pine_capabilities.md line 40 [DOC/MEASURED]: on the Cboe One feed, intraday bars carry about 4-12% of consolidated volume. PLAYBOOK line 280 says Cboe is the default for US stocks, so it is the default for this Premium trader unless they buy exchange data. PLAYBOOK row 'consolidated | Cboe only' already admits that 'the alert at the close read too low'. In that set-up, `unusual` (line 186) almost never reaches 2.0, so the trader's main alert is dead. It is documented in the playbook but still broken in the code, and the 5-minute data needed for a like-for-like fix is already loaded on line 114. Parts (b) to (d) are not established. (b) depends on whether SPY's live feed without ARCA is Cboe-only (from memory, unverified). (c) The intraday/EOD gap with full live data has no measured size: pine_requests 4.6 says it exists, and line 41 measured it only in the minutes after 16:00. (d) Whether server alerts ever reload is undocumented. Only a chart run can settle (b) to (d).",
+          "fix": "As proposed. Before the curves push on line 121, compute `float ratio5 = na`. When `isDaily and barstate.isrealtime and curves.size() >= 10 and array.size(ltV) > 0`, collect `d.cum.get(GRID - 1)` from every curve into an array and set `ratio5 := median > 0 ? array.sum(ltV) / median : na`. Build curves whenever isDaily, not only when i_pace is on. On the realtime daily bar use ratio5 in `unusual` and in the message. Also leave out the EOD rank clause (rankD has the same feed mismatch) and the index clause in that message, or replace the index clause with a 5-minute SPY request using the same median-of-totals method. Keep `volume / typD` for every other bar."
+        },
+        {
+          "id": "V2",
+          "verdict": "uncertain",
+          "severity": "minor",
+          "reason": "The mechanism is real. On the last bar, once the session is closed, `live` is false (barstate.isconfirmed is true on historical bars; from memory, unverified), and the table then prints the ratio and rank as final. 01_pine_capabilities line 41 [MEASURED] shows that the realtime daily bar has lower volume than the settled bar in the minutes after 16:00. The PLAYBOOK row 'consolidated | Cboe only' says 'closed bars may be corrected later' and tells the trader to read SL Volume 'the next morning'. However, no doc measures how long the last bar stays unsettled after the close (the finding assumes until 23:00), or how large the gap is with consolidated live data. Only a chart run can tell. One detail of the finding is wrong: below i_level the row is drawn in C_MUTED (line 229), not in full colour, so the 0.1× and 0.9× examples are already muted.",
+          "fix": "Add `bool provisional = isDaily and barstate.islast and not live and timenow - time_close < 16 * 3600000`. This means within about 16 hours of the bar's close, and it is automatically false at weekends. Use it instead of comparing day-of-year, which can break if a daily bar's `time` does not fall on the exchange date. When provisional is true, label the row 'Today (provisional)' and draw it in C_MUTED. Show ratio5 from V1 if that fix is adopted. Leave out the rank and the 'vs market' row, or mark them provisional."
+        },
+        {
+          "id": "V3",
+          "verdict": "refuted",
+          "severity": "cosmetic",
+          "reason": "The finding describes code that is not in this file. Line 193 reads `paceSlot >= 12`, not `>= 6`. f_slotOf (line 117) gives slot 12 for a 5-minute bar opening at 10:30 ((630 - 570) / 5 = 12), so the alert cannot fire before 10:30 ET. The tooltip on line 44 says 'only after the first hour: before 10:30…', which matches PLAYBOOK lines 324-325 and the start of the G81 table. The tooltip text the finding quotes ('not before the first 30 minutes') does not appear anywhere in the script.",
+          "fix": "none"
+        },
+        {
+          "id": "V4",
+          "verdict": "confirmed",
+          "severity": "minor",
+          "reason": "Line 120: `paceUsable = isDaily and i_pace and syminfo.timezone == \"America/New_York\"`. With i_pace off, lines 121 and 141 never run, so curves stay empty and pace is always na. The alert condition on line 193 (`i_alPace and paceUsable …`) is then always false. A display checkbox ('Show today's pace', group G2) silently turns off an alert input in another group (G4). Because alerts keep a snapshot of their inputs (01_pine_capabilities line 21), an alert created in that state never fires and gives no warning.",
+          "fix": "Use `bool paceCalc = isDaily and (i_pace or i_alPace) and syminfo.timezone == \"America/New_York\"` on lines 121, 141 and 193. Gate the display on i_pace: line 174 becomes `plot(i_pace and barstate.islast ? pace : na, …)`, and line 233 becomes `if i_pace and paceCalc and live`."
+        },
+        {
+          "id": "V5",
+          "verdict": "uncertain",
+          "severity": "minor",
+          "reason": "The mismatch in the code is real. The alert (line 192) checks only `eBar`, while the table (line 242) also checks `eAct[1]`, and the header (line 17) says after-close reports trade the next day. Whether the trader gets the alert without the earnings clause depends on which bar the report lands on, and that is unverified. pine_requests.md 6.2 lists after-close placement as an open point, and section 15 item 2 says the realtime placement is not verified. S10 and S11 support the report date (Tuesday) on historical bars, so the omission occurs when the alert's script was loaded after the report, for example an alert re-created on Wednesday morning, which the PLAYBOOK encourages. In an alert that has been running since before the report, Tuesday's bar was already confirmed at 16:00. The value then most plausibly arrives on Wednesday's realtime bar (from memory, unverified), so eBar is true and the alert does mention earnings. Only a chart run can tell.",
+          "fix": "Add globally `bool ePrev = not isIntra and not na(eAct[1])`. In the alert use `eBar ? \"; earnings report on this bar\" : ePrev ? \"; earnings report on the previous bar (after-close reports trade the next day)\" : \"\"`. Use ePrev on line 242 as well. The change is cheap and harmless whichever bar the report lands on."
+        },
+        {
+          "id": "V6",
+          "verdict": "refuted",
+          "severity": "cosmetic",
+          "reason": "This is the designed behaviour, not a wrong reading. The input says 'At the close of an unusual bar' (line 41), and alert.freq_once_per_bar_close is meant to fire on every such bar. Each bar is compared only with earlier bars from its own clock-time slot (lines 78-98), and the message says so ('the same hour's earlier bars'). An extended-hours bar at 2× its own slot's median is therefore described correctly. Extended-hours slots exist only if the user turns on extended hours on the chart. Bars with zero volume are left out of the slots (line 92), and a slot needs at least 10 values before it is used (line 86). Several alerts on a heavy day is a matter of alert frequency, which the task excludes as a preference, not a defect in the numbers.",
+          "fix": "none needed. If fewer alerts are wanted, `(not isIntra or session.ismarket)` can be added to `unusual`, which documents and enforces regular-session-only alerts."
+        },
+        {
+          "id": "V7",
+          "verdict": "confirmed",
+          "severity": "minor",
+          "reason": "Line 224 (`isIntra ? \"This bar\" : \"Today\"`) labels every non-intraday timeframe 'Today'. On a weekly chart, which this trader uses, the row reads 'Today forming: 0.4× so far' or 'Today 1.6× typical · above 80%' for the week's volume against 50 weeks. That can easily be read as today's volume. On a daily chart opened at a weekend or on a holiday, 'Today' describes the previous session. That case is cosmetic.",
+          "fix": "`string what = isIntra ? \"This bar\" : isDaily ? (live or timenow - time_close < 16 * 3600000 ? \"Today\" : \"Last session \" + str.format_time(time_close, \"EEE d MMM\", syminfo.timezone)) : tfSec == 604800 ? \"This week\" : \"This bar\"`."
+        },
+        {
+          "id": "V8",
+          "verdict": "confirmed",
+          "severity": "cosmetic",
+          "reason": "Line 229 prints, for example, '1.4× typical · above 73%'. Next to a multiple of typical volume, 'above 73%' reads naturally as '73% above typical', which contradicts 1.4×. It actually means a percentile among the previous i_rankN bars: ta.percentrank counts earlier values at or below the current one (from memory, unverified). The tooltip and the alert word it correctly; the short table text does not. It does not change any number, so it is only a wording issue.",
+          "fix": "Print `\" · beats \" + str.tostring(rank, \"0\") + \"% of last \" + str.tostring(i_rankN)`. On intraday charts print `\" · beats \" + str.tostring(rank, \"0\") + \"% of same-time bars\"`."
+        }
+      ]
+    },
+    {
+      "lens": "usage",
+      "findings": [
+        {
+          "id": "A",
+          "title": "Without paid exchange data, the default close-of-day alert on daily charts almost never fires, and the evening reading looks like a quiet day",
+          "severity": "major",
+          "lines": "68, 101, 170, 186-192, 225-231 (compare 113-156, which avoids the problem)",
+          "scenario": "Premium account without the paid NASDAQ/NYSE real-time add-ons. This is the PLAYBOOK case 'History consolidated, Live Cboe only', which the playbook says is the default unless he pays. He has a daily AAPL chart and an 'Any alert() function call' alert. On a day AAPL settles at 2.5x its 50-day median, the live daily bar has only been adding up Cboe's share of trades. At 16:00 that gives ratio = live volume / typD of roughly 0.1-0.3 (the 50-day median, typD, comes from settled, consolidated bars), so `unusual` is false and no alert is sent. If the chart stays open into the evening, the confirmed bar is drawn as a faded column near zero and the table says 'Today 0.2x typical · above 0%'. That reads as the quietest day of the year. Earlier the same day the pace row said 2.4x (5-minute data on both sides), so the two readings contradict each other with no explanation.",
+          "why": "01_pine_capabilities.md, 'Bars and feeds' [DOC][MEASURED]: without paid data, settled daily bars carry consolidated volume while intraday bars carry about 4-12% of it. Just after 16:00 the realtime daily bar shows lower volume than the settled bar. PLAYBOOK 'Check the data feed once' names this case and says the alert at the close reads too low. The script compares that live daily volume with consolidated history (lines 68, 101). The pace compares 5-minute data with 5-minute data, so it does not have this mismatch. That the realtime daily bar is Cboe-only on the free feed is from memory, unverified; the playbook states it conditionally.",
+          "fix": "Detect the mismatch with data the script already loads. On historical daily bars with 5-minute data (barstate.ishistory and array.size(ltV) > 0 and volume > 0), store array.sum(ltV) / volume and keep the last 20 values. If their median is below 0.5, the intraday feed is partial. In that state, compute the live and close-of-day ratio from like-for-like data: ratioLive = array.sum(ltV) / median of d.cum.get(GRID - 1) over `curves`. Compute it before line 121 pushes today's curve. Use ratioLive for `unusual`, colCol and the 'Today' row on the realtime bar, and keep the end-of-day ratio for historical columns. Add a table row such as 'Feed: 5-min data is ~9% of daily volume, so live numbers use 5-minute data' so he knows which basis he is reading."
+        },
+        {
+          "id": "B",
+          "title": "The alert for an after-close earnings reaction day says nothing about earnings, and 1h/4h charts have no earnings context at all",
+          "severity": "major",
+          "lines": "167, 186-192 (vs 242-243)",
+          "scenario": "AAPL reports Thursday at 16:30 ET. request.earnings puts the value on Thursday's bar, where volume is normal, so no alert is sent. Friday trades 3.5x, and the alert reads 'AAPL (1D): volume 3.5x a typical bar, higher than 99% of the last 250 bars; index 1.0x, so 3.5x the market's...' with no word about earnings, because the message only checks eBar (this bar). The chart's own table says 'Earnings: report on the previous bar', and its tooltip calls such days 'expected, not news'. Many large caps report after the close, so for those names the biggest volume day of each quarter arrives on his phone as unexplained heavy volume. On 1h and 4h charts eBar is forced false (line 167), so all the hourly alerts on a reaction day carry no earnings note either.",
+          "why": "pine_requests.md §6.2 [DOC S10]: request.earnings returns the value 'on the bar where the report was published'. Which bar an after-close report lands on is not established (§6.2 open point, §15 #2). The table (line 242) already handles both cases with eAct[1]. The alert (line 192) handles only the same bar. Alerts are his only channel, since he cannot watch the screen.",
+          "fix": "Compute `bool ePrev = not isIntra and not na(eAct[1])` in global scope. In the message write `eBar ? \"; earnings report on this bar\" : ePrev ? \"; earnings report on the previous bar (after-close reports trade the next day)\" : \"\"`. For 1h and 4h charts, get a per-session flag from the daily context: for example `request.security(syminfo.tickerid, \"1D\", [not na(eAct), not na(eAct[1])])` around the same request.earnings expression (nested requests are allowed in v6, pine_requests §4.5). Add 'earnings session' or 'day after earnings' to the intraday alert and table."
+        },
+        {
+          "id": "C",
+          "title": "With extended hours on, 1h/4h charts draw and alert on thin pre-market and post-market bars",
+          "severity": "major",
+          "lines": "72, 78, 82-98, 171, 186-192",
+          "scenario": "1h chart of AAPL with 'Extended trading hours' turned on in chart settings, and the unusual-bar alert on. Bars run 04:00-20:00. Every pre-market and post-market hour gets its own slot of thin, erratic volume. A 07:00 bar trading 300K shares against a 100K slot median becomes a 3x solid column, and on a pre-market news morning a 20-30x column that squashes the pane. The close-of-bar alert fires 'AAPL (60): volume 3.0x a typical bar, higher than 95% of the same hour's earlier bars' at 05:00, 06:00, 07:00, 08:00 and again after 16:00, all on volume that does not matter. Across a watchlist that means several extra alerts per stock per day. On a 4h chart the 04:00-08:00 and 16:00-20:00 bars behave the same way.",
+          "why": "The comment on line 72 names 'the pre-market' as a reason for clock-time keys, so extended bars are deliberately included. Nothing filters them out of the slots, the plot or `unusual`. The chart's session setting changes the bars the script runs on (pine_requests.md §10.1 [DOC]), and an alert keeps the setup it was created with (01_pine_capabilities.md [DOC]). The frequency estimate is from memory, unverified.",
+          "fix": "Gate everything with the regular session: `bool regBar = not isIntra or session.ismarket` (session.ismarket compiles, pine_requests.md §13 t6). Push to the slots only when regBar, plot extended bars as na or a faint fixed colour, and use `unusual = ... and regBar`. Alternatively add an input 'Include extended hours' defaulting to false. Note in the tooltip that the 09:00-10:00 bar that straddles the open counts as pre-market under this rule."
+        },
+        {
+          "id": "D",
+          "title": "No market context during the session or on intraday charts, exactly when the pace alert and hourly alerts fire",
+          "severity": "minor",
+          "lines": "15-16, 162, 193-196, 238",
+          "scenario": "A market-wide heavy morning: a CPI release, a broad sell-off, an expiry day. The pace alert (2.5) is on 20 daily charts. By 10:30 SPY itself is running at about 2.5x, so many names cross 2.5 and each sends 'XYZ: volume running at 2.7x a typical day by 10:31 ...' with no index figure. When he opens a chart, the 'vs market' row is hidden while the bar is live (line 238), so nothing tells him the whole market is at 2.5x. On a Fed day at 14:00 on 1h charts, mktRatio is na for intraday (line 162), so the hourly alerts fire across the watchlist with no context either.",
+          "why": "The header (lines 15-16) promises the comparison exactly for Fed days and expiries. It only exists on closed daily/weekly bars. The pace alert message (line 194) carries no index number.",
+          "fix": "Add a second `request.security_lower_tf(ticker.modify(i_mkt, session.regular), \"5\", [time, volume], ...)` and build index curves with the same code: move lines 121-156 into a function that takes the arrays and a curve array. Compute mktPace and show 'vs market  1.1x · SPY pace 2.4x' while live. Add the same figures to the pace alert. Optionally require pace / mktPace >= an input before alerting. The request budget allows it (pine_language.md R1: 40 requests)."
+        },
+        {
+          "id": "E",
+          "title": "In the first minutes after 09:30 the pace reads 3-15x on any ordinary day, and the dot squashes the pane",
+          "severity": "minor",
+          "lines": "141-156 (144, 148-149), 174, 233-235",
+          "scenario": "Daily chart at 09:30:20 ET. paceSlot = 0 and frac is about 0.07, so the typical value is about 7% of past sessions' first 5-minute bar. soFar already holds today's whole opening auction, which prints at 09:30:00. With the auction at about 25% of a first 5-minute bar, pace = (0.25 + 0.07x0.75) / 0.07, about 4.3x. At 09:30:05 it is about 15x, and it only falls back to about 1 by 09:35. The table shows 'Pace 4.3x by 09:30 · 0% of a day done · rough in the first hour' in the strong colour (>= i_level). The dot at 4-15 rescales the whole pane, so every column shrinks to the bottom. This happens for every stock every day. The alert is not affected (paceSlot >= 12).",
+          "why": "Arithmetic of lines 144-149: within slot 0, past curves are pro-rated linearly by the clock, while today's opening auction arrives as one lump at the start. From slot 1 onward both sides include an opening auction, so the comparison is fair again. Plots set the pane's auto-scale (from memory, unverified).",
+          "fix": "Compute pace only when f_slotOf(array.last(ltT)) >= 1, and show 'from 09:35' before that. Plot the dot as `math.min(pace, 5.0)`, keeping the true value in the table and the Data Window plot (line 181)."
+        },
+        {
+          "id": "F",
+          "title": "An earnings or news day squashes the column scale for months",
+          "severity": "minor",
+          "lines": "171",
+          "scenario": "Daily chart of a mid-cap whose last earnings reaction day was 9x, or a news day at 20x. With four reports a year, one is almost always in a 6-12 month view. The pane auto-scales to 0-9, so the 1.0 and 2.0 lines sit in the bottom 11% and 22% of a lower pane of perhaps 150 px. A 1.5x day and a 2.5x day differ by about 15 px. The readings around the 2x threshold, which are the ones he scans for, become hard to tell apart until that day scrolls out of view.",
+          "why": "Unbounded linear columns in a pane that auto-scales to the tallest visible value (pane behaviour from memory, unverified).",
+          "fix": "Plot `math.min(ratio, i_cap)` with an input cap (default 4-5). Mark clipped bars with a label showing the true value, such as str.tostring(ratio, \"0\") + \"x\", and set max_labels_count. Keep the uncapped `ratio` in the Data Window plot (line 178) so exports and parity checks are unchanged."
+        },
+        {
+          "id": "G",
+          "title": "Newly listed stock: empty pane, an alert that cannot fire, and an unexplained '- typical'",
+          "severity": "minor",
+          "lines": "68, 86, 101, 186, 209-210, 226-229",
+          "scenario": "A stock listed about 30 sessions ago, a common swing candidate. typD = ta.median(volume, 50)[1] is na until 51 bars exist, so ratio is na. The pane has no columns, the default unusual alert can never fire, and the table says 'Today  - typical' (or 'forming: - so far') with no reason given. The pace row already works after 10 sessions, so he sees a pace but no day ratio, which looks contradictory. The same happens on 1h/4h charts for the first 10 sessions ('This bar  - typical') and on a weekly chart for the first 51 weeks.",
+          "why": "That ta.* functions return na until `length` bars exist is from memory, unverified. f_x prints '-' for na (line 210) and nothing in the table explains it.",
+          "fix": "At minimum, when hasVol and na(typ), print 'needs 50 bars (has N)' or 'needs 10 sessions'. Better, compute the daily typical from an array of confirmed volumes. Use `var array<float> hv`. Take typ = hv.size() >= 10 ? hv.median() : na before adding the current bar, push only confirmed bars, and cap the array at i_nDaily. Show 'median of N bars' when N < i_nDaily."
+        },
+        {
+          "id": "H",
+          "title": "The table says 'Today' for a weekly bar, and for the previous session on weekends, holidays and before the open",
+          "severity": "minor",
+          "lines": "224",
+          "scenario": "(a) Weekly chart: the row reads 'Today 1.6x typical', but the number is this week against a median of 50 weeks. (b) Daily chart opened on Saturday, on Thanksgiving (26 Nov 2026), or at 08:00 ET before the open: the last bar is the previous session, yet the row reads 'Today 2.3x typical'. That is easy to take as today's volume already being unusual.",
+          "why": "`what = isIntra ? \"This bar\" : \"Today\"` labels every non-intraday last bar 'Today', whatever its timeframe or date.",
+          "fix": "Use 'Today' only for a live daily bar. Otherwise name the bar: for example `live ? (isDaily ? \"Today\" : \"This week\") : (isDaily ? \"Session \" : \"Week of \") + str.format_time(time, \"EEE d MMM\", syminfo.timezone)`, with a monthly variant if needed."
+        },
+        {
+          "id": "I",
+          "title": "Ambiguous wording in the table and alerts",
+          "severity": "cosmetic",
+          "lines": "188, 190, 218, 229, 239",
+          "scenario": "'1.8x typical · above 92%': right after a multiple, 'above 92%' can read as '92% above typical' (that is, 1.92x) or as 'above the 92nd percentile'. It means 'at or above 92% of the previous 250 bars', and on the highest bar it prints 'above 100%'. 'vs market  1.6x · SPY 1.1x': the first number is the stock's ratio divided by SPY's, but it reads like a second day ratio. The alerts print 'AAPL (60)' and 'AAPL (240)' (raw timeframe.period strings). On a 4h chart they say 'the same hour's earlier bars' although the slot is a 4-hour block.",
+          "why": "ta.percentrank counts earlier values <= the current one (script comment line 69; semantics from memory). Timeframe strings are '60' and '240' (pine_language.md §3.6 [DOC]).",
+          "fix": "Use 'beats 92% of the last 250 days' or 'top 8% of 250 days'. Use 'vs market: 1.6x SPY's ratio (SPY 1.1x)'. Map '60' to '1h', '240' to '4h', '1D' to 'daily' and '1W' to 'weekly' for the header and alerts. Say 'the same time slot's earlier bars'."
+        },
+        {
+          "id": "J",
+          "title": "A bar just under the threshold shows '2.0x' but stays faded and sends no alert",
+          "severity": "cosmetic",
+          "lines": "170, 186, 189, 210, 229",
+          "scenario": "ratio = 1.96 prints '2.0x typical' in the table, while the column is drawn 50% transparent, the row is muted and no alert comes, even though the line and the input say 'Unusual at x2.0'. The next day ratio = 2.04 prints the same '2.0x' and does alert. He may conclude the alert is broken.",
+          "why": "The display rounds to one decimal (\"0.0\"), but the tests use the unrounded ratio >= i_level.",
+          "fix": "Round down for display: str.tostring(math.floor(x * 10) / 10, \"0.0\"). Or show two decimals in the table and the alert."
+        },
+        {
+          "id": "K",
+          "title": "On the index's own chart (SPY), 'vs market' is always 1.0, which the tooltip calls a market-wide heavy day",
+          "severity": "cosmetic",
+          "lines": "162-163, 191, 238-240",
+          "scenario": "Chart of AMEX:SPY, the default index. The request returns SPY's own ratio, so ownRatio = 1.0 every day. The table shows 'vs market 1.0x · SPY 0.8x' and the alert says '; index 0.8x, so 1.0x the market's'. The tooltip reads 'Near 1: the whole market traded heavily', which is false on a quiet day.",
+          "why": "ownRatio = ratio / mktRatio with identical numerator and denominator.",
+          "fix": "Skip the comparison when syminfo.ticker == syminfo.ticker(i_mkt), or when the tickerids match, and write 'this is the index' instead."
+        },
+        {
+          "id": "T",
+          "title": "The default top-right table can cover the newest columns and the pace dot",
+          "severity": "minor",
+          "lines": "48, 49, 215, 234-235",
+          "scenario": "Daily chart, default 'Top right' and 'Small', in a lower pane of roughly 100-150 px. In the first hour the pace value alone is about 57 characters ('1.4x by 10:15 · 12% of a day done · rough in the first hour'). The table is then roughly 350-400 px wide and about 100 px tall, with a background at 6% transparency (line 215), so it is practically opaque. At default bar spacing that covers about the last 40-60 daily bars over most of the pane's height. Today's live column and the pace dot sit there, and when today is the unusual day (the tallest column, reaching the top), its top is hidden behind the table.",
+          "why": "Tables are drawn over the plots of their pane (from memory, unverified). Pixel sizes are estimates. Right-side positions overlap the newest bars, which are the ones he opens the chart for.",
+          "fix": "Default to 'Top left', which covers the oldest bars. Shorten the values and move 'rough in the first hour' and '% of a day done' into the tooltip or a short separate row. Default the text to 'Tiny'. Raise the background transparency (for example 40). Mention TradingView's 'Move tables to bottom' (pine_language.md §2, Sep 2026 [DOC]) in the playbook."
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "A",
+          "verdict": "confirmed",
+          "severity": "major",
+          "reason": "The direction is right but the size is wrong. The project's own measurement (pine_plans.md §10.3 [MEASURED], AAPL 2026-11-11, guest session) read the realtime daily bar 2-9 minutes after the close at 23.4M against 31.4M settled, which is 74%. Settled bars matched consolidated volume. Cboe-only intraday bars carry about 6% (§10.2). So the live daily bar is not 'Cboe's share only', and the claimed ratio of 0.1-0.3 at 16:00, 'almost never fires' and 'reads as the quietest day of the year' are all refuted. What does happen at lines 68/101/186: `volume` on the confirming realtime tick is about a quarter short, while typD comes from settled bars. A day that settles at 2.5x reads about 1.85x. It sends no alert (line 186) and is drawn faded (line 170). The table row stays muted ('Today 1.9x', line 229). The unusual-bar alert effectively needs about 2.7x settled, so it misses roughly the 2.0-2.7x days, and every alert it does send understates the ratio. PLAYBOOK row 'consolidated / Cboe only' already concedes 'the alert at the close read too low', but the script still computes it that way. Caveats: this is one day and one symbol, measured in a guest session, so the exact shortfall on his Premium account needs a chart run. The line 247-248 tooltip ('live volume is Cboe's share only') is also inaccurate per §10.3.",
+          "fix": "On the daily realtime bar, including its closing tick (where `live` is false, so the pace block does not run), compute the ratio from like-for-like 5-minute data when curves.size() >= 10. Do it before line 121 pushes today's curve: ratioClose = array.sum(ltV) / median over curves of d.cum.get(GRID - 1). Use ratioClose for `unusual`, colCol and the 'Today' row on that bar only. Keep volume / typD for historical bars. Append ' (at the close, from 5-minute data; settled volume arrives later)' to the alert. When curves are unavailable (pace off, or a non-New York timezone), keep the current ratio and add 'preliminary, usually ~25% low on the free feed'. Note that the Cboe share varies by day (2-15%, §10.2), so the 5-minute basis is noisier but unbiased. The 0.5 detection step is optional."
+        },
+        {
+          "id": "B",
+          "verdict": "uncertain",
+          "severity": "minor",
+          "reason": "The inconsistency is real in the code. The table (line 242) checks eAct[1], but the alert (line 192) checks only eBar. The scenario, though, needs the after-close report to sit on Thursday's bar when the alert fires. Alerts fire only on realtime bars. In a continuously running alert, Thursday's daily bar was confirmed at 16:00, before a 16:30 report. If request.earnings streams the value, it can only arrive on Friday's realtime bar. Then eBar is true on Friday and the alert does mention earnings, although it says 'on this bar'. The value lands on Thursday only if the alert recalculates from history before Friday, or if earnings data do not stream at all, and in that second case ePrev would not help either. pine_requests.md §6.2 and §15 #2 leave both the historical bar and the realtime bar of after-close reports open, so only a live test can settle it. The 1h/4h part is a design choice (line 167 deliberately limits E to daily and higher), not a wrong reading.",
+          "fix": "Cheap and harmless whatever the alignment: in global scope, `bool ePrev = not isIntra and not na(eAct[1])`. In the alert, write `eBar ? \"; earnings report on this bar or just before it\" : ePrev ? \"; earnings report on the previous bar (after-close reports trade the next day)\" : \"\"`. Verify on a known after-close reporter with a live alert. Skip the intraday earnings request unless he asks for it."
+        },
+        {
+          "id": "C",
+          "verdict": "confirmed",
+          "severity": "minor",
+          "reason": "With 'Extended trading hours' on, nothing in lines 78-98, 171 or 186 filters pre- or post-market bars. Each clock hour from 04:00 to 20:00 gets its own slot, column and close-of-bar alert, and the chart's session setting does change the bars the script runs on (pine_requests §10.1 [DOC]). Line 72 shows the author meant extended bars to be keyed separately, so the ratios are like-for-like and not numerically wrong. The real cost is many extra alerts at 05:00-08:00 and after 16:00 on noisy thin slots, plus very tall columns on news mornings. This only happens with ETH on. Regular hours is TradingView's default for US stocks (from memory, unverified).",
+          "fix": "Gate only the alert, which is the minimal change: `unusual = hasVol and barstate.isconfirmed and ratio >= i_level and (not isIntra or session.ismarket)` (session.ismarket compiles, §13 t6). Optionally add an input 'Alert on extended-hours bars' defaulting to false. Tooltip: with ETH on, the 09:00-10:00 bar that straddles the open counts as pre-market."
+        },
+        {
+          "id": "D",
+          "verdict": "refuted",
+          "severity": "cosmetic",
+          "reason": "This is a feature request, not a defect. Line 158 scopes the market comparison to daily and higher. Line 238 hides it on live bars by design, and nothing in the table, the alerts or the PLAYBOOK says there is intraday or in-session market context. The pace alert reports the stock's own pace correctly. The Fed day, expiry and rebalancing cases in lines 15-16 are covered on the closed daily bar and in the close-of-day alert (line 191). No reading is wrong or misleading.",
+          "fix": "none (optional enhancement: an SPY pace from a second 5-minute request, shown while live and in the pace alert)"
+        },
+        {
+          "id": "E",
+          "verdict": "confirmed",
+          "severity": "minor",
+          "reason": "In slot 0 (lines 143-149), past sessions are pro-rated linearly by the clock (frac = elapsed / 300 s), but trading in the first seconds after the open is heavily front-loaded. A few seconds after 09:30, soFar divided by (frac x first-slot volume) is therefore inflated on every ordinary day. As frac approaches 0 the value can be very large; at frac = 0 it is handled, because tn = 0 gives na. The table shows the inflated value in the strong colour once it reaches i_level (line 235), and the single dot at line 174 can rescale the pane (autoscale from memory). This assumes the forming 5-minute intrabar is in ltV on the realtime bar, which the frac logic itself presumes (from memory, unverified). The size of the effect depends on the feed. On the default Cboe One feed, the primary exchanges' opening auction is probably not in the 5-minute data (from memory), so expect roughly 1.5-2.5x rather than 4-15x. The 4-15x figures fit data that include the auction print. It lasts only until 09:35. The alert is gated (paceSlot >= 12), and the row already says 'rough in the first hour'.",
+          "fix": "Add `and f_slotOf(array.last(ltT)) >= 1` to the condition at line 141, so slot 0 is never pro-rated. Show 'from 09:35' in the pace row before that. Optionally plot the dot as math.min(pace, 5.0) and keep the true value in the Data Window plot (line 181)."
+        },
+        {
+          "id": "F",
+          "verdict": "refuted",
+          "severity": "cosmetic",
+          "reason": "Auto-scaling to the tallest visible column is standard pane behaviour, and the built-in Volume pane does the same. The readings around the threshold that he scans for do not depend on height. Line 170 already draws columns at or above i_level solid and those below faded, so 1.5x and 2.5x days differ in colour whatever the scale. The exact value is in the table and the Data Window, and alerts are unaffected. This is a display preference, not a wrong or misleading reading.",
+          "fix": "none (optionally mention the pane's logarithmic scale in the playbook)"
+        },
+        {
+          "id": "G",
+          "verdict": "confirmed",
+          "severity": "minor",
+          "reason": "typD = ta.median(volume, i_nDaily)[1] is na until about i_nDaily + 1 bars exist (ta.* warm-up, from memory, unverified). So for a listing younger than about 51 sessions, ratio is na (line 101). The pane is empty (line 171), `unusual` can never be true (line 186), and f_x prints '-' (line 210) with no explanation at lines 226-229. Meanwhile the pace row works after 10 sessions, so the two rows look contradictory. On intraday charts it is the same until 10 sessions are in a slot (line 86), and on weekly charts until about 51 weeks. The alert stays silent with no sign that it cannot fire. The warm-up itself is inherent to a 50-bar median; the missing explanation is the defect.",
+          "fix": "Minimal: in the 'Today'/'This bar' row, when hasVol and na(typ), print isIntra ? 'needs 10 sessions at this time (has ' + str.tostring(nI) + ')' : 'needs ' + str.tostring(i_nDaily + 1) + ' bars (has ' + str.tostring(bar_index + 1) + ')'. Do not change the method."
+        },
+        {
+          "id": "H",
+          "verdict": "confirmed",
+          "severity": "cosmetic",
+          "reason": "Line 224 labels every non-intraday last bar 'Today'. On a weekly or monthly chart the row is a week or month against 50 such bars. On a daily chart on a weekend or holiday, the last bar is the previous session, and the row still says 'Today 2.3x typical', which can be taken as today's volume. The number is correct; only the label misleads.",
+          "fix": "`bool sameDay = str.format_time(time, \"yyyy-MM-dd\", syminfo.timezone) == str.format_time(timenow, \"yyyy-MM-dd\", syminfo.timezone)`, then `what = isIntra ? \"This bar\" : isDaily ? (sameDay ? \"Today\" : \"Last session\") : \"This bar\"`."
+        },
+        {
+          "id": "I",
+          "verdict": "confirmed",
+          "severity": "cosmetic",
+          "reason": "Only the concrete slips are confirmed. ta.percentrank counts earlier values <= the current one, so the highest bar prints 'above 100%' (line 229), and the alert prints 'higher than 100%' (line 190), which is impossible wording. On a 4h chart, the slot (line 78) is a 4-hour block, yet the alert says 'the same hour's earlier bars'. timeframe.period gives '60' and '240' (pine_language §3.6 [DOC]), which is readable to a TradingView user. The 'vs market' layout is explained by its tooltip. The rest is a matter of wording taste.",
+          "fix": "In the table, write '· beats ' + rank + '% of the last N' and 'highest of the last N' when rank == 100, and use the same in the alert. Replace \"the same hour's earlier bars\" with \"the same time slot's earlier bars\". Optionally map '60' to '1h' and '240' to '4h'."
+        },
+        {
+          "id": "J",
+          "verdict": "confirmed",
+          "severity": "cosmetic",
+          "reason": "f_x uses str.tostring(x, \"0.0\"), which rounds (line 210), while colCol (line 170), the row colour (line 229) and `unusual` (line 186) test the unrounded ratio >= i_level. A ratio of 1.95 to 1.999 therefore shows '2.0x typical' faded, muted and with no alert. The alert text itself is unaffected, because it fires only when ratio >= i_level. This is rare (a fraction of a percent of bars) but looks like a broken alert.",
+          "fix": "In f_x, display the value rounded down: `str.tostring(math.floor(x * 10) / 10, \"0.0\") + \"×\"`."
+        },
+        {
+          "id": "K",
+          "verdict": "confirmed",
+          "severity": "cosmetic",
+          "reason": "On AMEX:SPY (the default i_mkt), line 162 requests the same f_ratioD on the same daily volume, so ownRatio (line 163) is always about 1.0. The table and alert then say '1.0x · SPY 0.8x' and 'so 1.0x the market's', and the tooltip reads 'Near 1: the whole market traded heavily', which is false on a quiet day. The numbers are trivially true; the interpretation is wrong.",
+          "fix": "`bool isIdx = syminfo.ticker == syminfo.ticker(i_mkt) and syminfo.prefix == syminfo.prefix(i_mkt)`. Set mktRatio to na when isIdx, and print 'this is the index' in the 'vs market' row."
+        },
+        {
+          "id": "T",
+          "verdict": "confirmed",
+          "severity": "cosmetic",
+          "reason": "The geometry is robust. Auto-scale puts the largest visible value at the top of the pane, and the newest bar is at the right edge. So on exactly the days that matter (today's column is the tallest, or the pace dot at line 174 is the maximum), that point lands in the top-right corner. The default table (line 48) sits there with a nearly opaque background (6% transparency, line 215), and tables draw over plots (from memory). Exactly how many bars are covered depends on pane height, bar spacing and text size, which only a chart can show. No information is lost, because the table repeats the hidden values.",
+          "fix": "Change the default at line 48 to \"Top left\", which covers the oldest bars. Optionally raise the background transparency at line 215 to about 30-40."
+        }
+      ]
+    },
+    {
+      "lens": "data",
+      "findings": [
+        {
+          "id": "F1",
+          "title": "Daily close alert, 'Today' row and column use the provisional daily volume, about a quarter below the settled figure",
+          "severity": "major",
+          "lines": "68-69, 101, 170, 186-192, 224-227",
+          "scenario": "Daily chart of NASDAQ:AAPL on the free feed, with the alert 'At the close of an unusual bar' active. The project measured 11 Nov 2026: 2 to 9 minutes after 16:00 the realtime daily bar showed 23.39M shares. The settled bar, which equals Yahoo, was 31.44M, so the live figure was 74% of it. typD is the median of 50 settled bars, so at the close `ratio` is about 0.74 times what the same bar shows after a reload. A day that settles at 2.0-2.7x is read as 1.5-2.0x and no alert is sent. When an alert does fire, its ratio and rank are the provisional ones. The column is coloured from them, and the next morning, after a reload, the same bar shows more than 2x. Weekly charts have the same problem for the Friday part of the week, so the effect is smaller. In an alert left running for weeks, bars that closed in realtime keep their provisional volume unless the server recalculates. So typD also drifts toward provisional values, and the size of the bias changes over the life of the alert.",
+          "why": "Measured: pine_plans.md section 10.3 and 01_pine_capabilities.md line 41. At the close, the realtime daily bar has lower volume (and a slightly different close) than the settled bar. The settled bar replaces it later, not within 9 minutes; the exact time was not measured. Documented: _raw/pine_requests.md section 4.6, D5: 'some trades (block trades, OTC trades, etc.) may only be available at the end of the trading day... the EOD feed will include this volume data'. The closing auction is the obvious candidate; that is my interpretation. An alert with alert.freq_once_per_bar_close and barstate.isconfirmed is evaluated on that realtime bar. The tooltip at line 227 says 'the column is final at the close', which is false on this feed. Whether a running server-side alert recalculates when the settled bar arrives is not documented (pine_requests.md section 6.3 note).",
+          "fix": "(1) Before line 121, add a like-for-like full-day test from the 5-minute feed, whose two sides do not depend on settlement:\n```\nfloat dayIntra = na\nif paceUsable and barstate.isconfirmed and array.size(ltV) > 0 and curves.size() >= 10\n    array<float> tots = array.new<float>()\n    for d in curves\n        tots.push(d.cum.get(GRID - 1))\n    float mt = tots.median()\n    dayIntra := mt > 0 ? array.sum(ltV) / mt : na\nbool provisional = not isIntra and barstate.isrealtime\n```\nLine 186 becomes `bool unusual = hasVol and barstate.isconfirmed and (ratio >= i_level or (provisional and dayIntra >= i_level))`. When `provisional` is true, the message gives both numbers and adds 'provisional: closing auction and late trades are added after the close'. Note that dayIntra is noisier; see F3. (2) Line 227: replace 'the column is final at the close' with 'at the close the daily volume is still provisional (about 3/4 of the settled figure in one test); reload the chart the next morning'. (3) Chart test: create the alert on 3 stocks. The next morning, compare the alert's ratio with the Data Window 'Ratio to typical' for that bar after a reload, and check whether the running alert ever recalculates."
+        },
+        {
+          "id": "F2",
+          "title": "Feed warning text and the manual data check contradict the project's own feed measurements; the script can measure the feed itself",
+          "severity": "major",
+          "lines": "19-20, 233-236, 245-248 (and the PLAYBOOK data-check table)",
+          "scenario": "Case 1: the trader runs PLAYBOOK check 3 on a daily chart during the session. TradingView's daily volume roughly matches the broker's: the realtime daily bar is consolidated-like (74% of settled even after the close). They conclude 'consolidated | consolidated: everything works as designed' and trust the close alert, which reads low (F1). Case 2: they run the same check on a 1h chart. TradingView shows about 6% of the broker's figure, so they conclude 'live is Cboe-only, cannot be trusted' and drop the 1h ratio and the pace. Those are actually fine, because both compare Cboe bars with Cboe bars. The tooltip at line 248 ('live volume is Cboe's share only') and the PLAYBOOK line 'pace... read too low' send the user the same wrong way.",
+          "why": "Measured (01_pine_capabilities.md line 40; pine_plans.md section 10.2): settled daily bars carry consolidated volume, matching Yahoo within 0.06% for AAPL and JPM. Intraday bars, history and live from the same feed, carry 4-12% of it; the ratio was 0.062 for AAPL and JPM on 9-10 Nov. The realtime daily bar at the close carries 74% (section 10.3). So on the free feed: the intraday ratio, rank and pace compare Cboe with Cboe, which is correct. The daily ratio compares settled consolidated history with an incomplete consolidated live bar. No feature is 'live Cboe-only against consolidated history'. The script correctly never mixes daily volume with summed 5-minute volume, but the user cannot see which basis each row uses. The 5-minute bars are assumed to be on the same intraday feed as the measured 1h and 4h bars; that is an inference.",
+          "fix": "Add a feed meter on daily charts. It costs no new request and replaces PLAYBOOK checks 2 and 3 with a glance at the table:\n```\nvar array<float> shr = array.new<float>()\nfloat intraSum = array.size(ltV) > 0 ? array.sum(ltV) : na\nif isDaily and barstate.isconfirmed and not barstate.isrealtime and intraSum > 0 and volume > 0\n    shr.push(intraSum / volume)\n    if shr.size() > 20\n        shr.shift()\nfloat shareHist = shr.size() >= 5 ? shr.median() : na\nfloat shareLive = isDaily and live and intraSum > 0 and volume > 0 ? intraSum / volume : na\n```\nTable row 'Feed': if shareHist < 0.5, show '5-min bars = X% of daily volume: intraday is Cboe-only (ratios and pace compare Cboe with Cboe)'. If shareHist is about 0.9-1.0, show 'intraday = consolidated'. If live and shareLive > 2 * shareHist, show 'today's daily bar looks Cboe-only: Today and the close alert read low'. Rewrite lines 19-20 and 248 and the PLAYBOOK table to match the measured facts."
+        },
+        {
+          "id": "F3",
+          "title": "Pace reliability figures quoted from G81 do not apply to Cboe-only 5-minute volume",
+          "severity": "minor",
+          "lines": "43-44, 141-156, 193-196, 233-236",
+          "scenario": "Daily AAPL on the free feed. In 2024 Q2-2026 Q4, Cboe's share of AAPL's daily volume ranged from 3.1% to 13.1% on single days, with quarterly medians of 6-10%. Take a day when Cboe's share is about twice its usual level while total volume is ordinary. The pace reads about 2x all day; with the alert level set at 2, it alerts; the column after the close reads about 1x. The tooltips say 'a pace of 2 read at 10:30 ended at 2 or more 4 times in 10', which overstates how far this pace can be trusted.",
+          "why": "G81 used Yahoo 1-hour bars (RESEARCH_LOG entry 11; the g81_pace_check.py docstring) and compared pace with a final built from the same bars. On TradingView without exchange subscriptions, the pace counts only Cboe trades. Cboe's per-day share of a stock's volume varies (measured, pine_plans.md section 10.2), and that variation adds error that G81 did not contain. The 'end of day' the user checks is the settled daily ratio, a different basis from the pace.",
+          "fix": "(1) Wording at lines 44 and 236: 'tested on consolidated hourly data; on the free feed this pace counts Cboe trades only and is noisier'. (2) Cheap in-script measure, inside the curve-push block before `curves.push`: compute that day's full-day 5-minute ratio, `tot / median(previous curves' tot)`, and the daily ratio, `volume / typD`. Push `math.abs(math.log(dayIntraDay / ratio))` into a 20-element array, and show its median as 'pace vs settled: typical gap X%'. When X > 25%, label the pace 'rough guide on this feed'."
+        },
+        {
+          "id": "F4",
+          "title": "Half-day sessions (13:00 close) give wrong 'share of day done' and short intraday bars compared with full ones",
+          "severity": "minor",
+          "lines": "78-99, 139-156, 194-195, 234-235",
+          "scenario": "Fri 27 Nov 2026 and Thu 24 Dec 2026 close at 13:00. Daily chart: at 12:50 the table and the pace alert say 'about 40% of a typical day done' when more than 95% of the session is done, because dayShare is the median share of full-day curves at that clock time. The pace value itself (volume so far against typical volume so far) stays valid. 1h chart: the 12:30 bar lasts 30 minutes but is compared with the median of 60-minute 12:30 bars. It reads about 0.5x, plus the half-day effect, and that short bar is pushed into the 12:30 slot history. 4h chart: the first bar is 3.5h instead of 4h.",
+          "why": "f_slotOf, GRID = 78 and the per-slot medians assume a 09:30-16:00 session. Nothing reads the session length of the current bar.",
+          "fix": "Daily: `int closeMin = hour(time_close, syminfo.timezone) * 60 + minute(time_close, syminfo.timezone)`. When live and closeMin < 960, replace '% of a day done' with 'early close 13:00'. From memory, unverified: the daily bar's time_close is the session end and includes early closes; check on 27 Nov. Intraday: add `int dur` to Slot, holding the largest `time_close - time` seen. If the current bar is shorter than 0.9 * dur, label it 'short bar (early close)' in the table and do not push it into the slot."
+        },
+        {
+          "id": "F5",
+          "title": "Market ratio at the close mixes two provisional feeds, and carries stale SPY values on non-US charts",
+          "severity": "minor",
+          "lines": "159-163, 186-192, 238-240",
+          "scenario": "(a) At the daily close, the alert's 'index X×, so Y× the market's' divides the stock's provisional ratio (F1) by SPY's provisional ratio, which comes from an independent realtime process. The provisional fractions differ, because closing-auction and late-print shares differ between one stock and SPY, so ownRatio at the close is biased. (b) If the trader later buys NASDAQ/NYSE data but not ARCA (the PLAYBOOK lists ARCA only 'for ETFs'), the stock's and SPY's live bars come from different feeds. (c) On a non-US daily chart, such as a TSX or LSE stock, on a US holiday (Thanksgiving, 26 Nov 2026), SPY has no bar. gaps_off then carries the previous day's SPY ratio into ownRatio.",
+          "why": "Documented (_raw/pine_requests.md section 4.3): requested and chart feeds 'are managed by independent, concurrent processes... requested results temporarily fall out of synch with the chart on a realtime bar'. gaps_off 'fills the gaps... with the last confirmed values' (section 4.1). Provisional daily volume at the close: measured (F1). The size of SPY's provisional gap was not measured.",
+          "fix": "Line 162: add `and syminfo.timezone == \"America/New_York\"`, the same guard the pace uses. Alternatively request `[f_ratioD(), time]` and set na when SPY's date differs from the chart bar's date. In the at-close alert (line 191), leave out the index clause when `barstate.isrealtime` and `not isIntra`, or mark it 'provisional'. The table row on a realtime-closed bar says 'provisional until reload'."
+        },
+        {
+          "id": "F6",
+          "title": "Pace guard checks only the timezone; NY-timezone symbols without a 09:30-16:00 session produce meaningless curves",
+          "severity": "minor",
+          "lines": "116-117, 120-134, 141-156",
+          "scenario": "Daily chart of a symbol whose timezone is America/New_York but whose regular session is not 09:30-16:00. Examples are NYMEX:CL1!, or an FX pair on a feed that uses New York time (both from memory, unverified). ticker.modify(..., session.regular) returns about 23 hours of 5-minute bars. f_slotOf clamps everything before 09:30 into slot 0 and everything after 16:00 into slot 77. The pace and dayShare become meaningless, and with the pace alert on, it can fire.",
+          "why": "paceUsable tests only `syminfo.timezone == \"America/New_York\"`. f_slotOf silently clamps out-of-range times with math.max and math.min instead of rejecting them.",
+          "fix": "Line 120: add `and (syminfo.type == \"stock\" or syminfo.type == \"fund\" or syminfo.type == \"dr\")`. In the curve loop (lines 124-126) and before using today's array, skip the day when any intrabar's minute of day is < 570 or >= 960, using `hour(t, tz) * 60 + minute(t, tz)`. This also catches a session.regular that is not honoured."
+        },
+        {
+          "id": "F7",
+          "title": "Live intraday bars may include odd-lot trades that historical bars exclude, which would inflate live 1h/4h ratios and the pace",
+          "severity": "minor",
+          "lines": "92-98, 114, 142, 186-192",
+          "scenario": "1h or 4h chart of a high-priced liquid stock, where odd lots are a large share of trades. At the bar's close, the live 1h bar is compared with the slot median of historical bars. If live bars count odd lots and history does not, the live bar reads high: extra 'unusual' alerts, and a pace (live 5-minute bars against historical 5-minute curves) that reads high. After a reload the same bar shows a lower volume. In a long-running alert, realtime-closed bars are pushed into the slots and curves, so the medians mix the two bases.",
+          "why": "Documented (TradingView help H46, quoted in pine_plans.md section 10.1): 'our data provider filters the odd lots trades out in the history, and as a result, our intraday charts are built based on the full trades only.' That realtime bars do include odd lots, so live readings exceed reloaded ones, is from memory, unverified.",
+          "fix": "Chart test first: note a just-closed 1h bar's volume in the Data Window, reload the chart, and compare. Do this for a $100 stock and a $700+ stock. If the reloaded bar is lower by more than a few percent, say so in the 'This bar' tooltip, raise the default intraday and pace alert levels accordingly, and consider not pushing realtime-closed bars (`barstate.isrealtime`) into `slots` and `curves`. That keeps the medians on one basis at the cost of staler medians in long-running alerts."
+        },
+        {
+          "id": "F8",
+          "title": "Misleading labels: wrong reason when pace is missing, and clock times without a timezone",
+          "severity": "cosmetic",
+          "lines": "193-196, 233-235",
+          "scenario": "(i) The curves are ready (10 or more sessions) but today's 5-minute array is empty: the daily bar is live before the first regular 5-minute bar, or the request returned nothing yet. The table still says 'needs 10 sessions of 5-minute data'. (ii) The pace alert and table print 'by 11:45' in New York time with no zone. A trader in Spain reads it as local time; the gap is 6 hours, or 5 between the EU and US DST switch dates (25 Oct to 1 Nov 2026, and 14 to 28 Mar 2027).",
+          "why": "Line 234 maps every na pace to one message. str.format_time(timenow, \"HH:mm\", syminfo.timezone) prints exchange time without saying so.",
+          "fix": "Line 234: `curves.size() < 10 ? \"needs 10 sessions of 5-minute data\" : array.size(ltV) == 0 ? \"no regular-session 5-minute bar yet\" : \"-\"`. Lines 195 and 234: append \" New York time\" (or \" ET\") after the formatted time."
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "F1",
+          "verdict": "confirmed",
+          "severity": "major",
+          "reason": "I could not refute this. Line 186 tests `ratio >= i_level` with barstate.isconfirmed and line 192 uses alert.freq_once_per_bar_close, so the decision is made on the realtime daily bar's volume. typD on line 68 is the median of settled bars when the chart loads. pine_plans.md 10.3 measured that the realtime AAPL daily bar 2-9 minutes after 16:00 was still 23,392,425 against 31,443,643 settled, i.e. 74%. Whenever the bar-close update fires (16:00 or later), the volume it sees is at most that figure, and the measured value did not change between 16:02 and 16:09. D2 (pine_plans 6.3) says providers 'retroactively adjust the reported values on realtime bars, which the displayed data reflects after users refresh their charts or restart their scripts'. So a running alert keeps provisional volumes for bars that closed in realtime, and the typD drift claim follows. The script also breaks the project's own design rule in pine_plans.md section 14: 'Do not condition a daily bar-close alert on the current day's volume unless the threshold is calibrated on the realtime feed'. The tooltip at line 227 ('the column is final at the close') is false according to the same measurement. Limits: one symbol on one day in a guest session, so the size of the gap (74%) needs a check on the logged-in account. The direction and the mechanism are documented and measured.",
+          "fix": "(1) Line 227 tooltip: replace 'the column is final at the close' with 'at the close the daily volume is still provisional (74% of the settled figure in one test); reload the chart the next morning for the settled value'. (2) Separate curve building from the pace switch: `bool curvesOn = isDaily and syminfo.timezone == \"America/New_York\"`, `bool paceUsable = curvesOn and i_pace`, and use curvesOn on line 121. (3) Before line 121, while `curves` does not yet hold today: `float dayIntra = na` / `if curvesOn and barstate.isconfirmed and barstate.isrealtime and array.size(ltV) > 0 and curves.size() >= 10` → collect `d.cum.get(GRID - 1)` for each d in curves, `mt = median`, `dayIntra := mt > 0 ? array.sum(ltV) / mt : na`. Both sides of that ratio come from the 5-minute feed. Line 186: `... and (ratio >= i_level or dayIntra >= i_level)`, and when dayIntra is not na the message adds '; daily volume provisional at the close, 5-minute basis X×'. (4) Chart test: create the alert on 3 stocks. The next morning, compare the ratio in the alert message with the Data Window 'Ratio to typical' after a reload."
+        },
+        {
+          "id": "F2",
+          "verdict": "confirmed",
+          "severity": "minor",
+          "reason": "The text claims contradict the measurements, but the numeric harm is already F1's. Line 248 states 'live volume is Cboe's share only'. pine_plans 10.3 measured the realtime daily bar at 74% of consolidated, which is not Cboe's ~6% share, so the statement is wrong for daily charts. For intraday it is true but harmless, because the measured intraday history is Cboe too (10.2: 0.061-0.063), so the 1h/4h ratios and the pace (5-minute live against 5-minute curves, lines 121-156) compare like with like. The PLAYBOOK 'consolidated | Cboe only' row wrongly lists the pace as reading low. Check 3 (TradingView's live daily volume against the broker's during the session) cannot detect the close-time shortfall that actually matters (F1), so it can steer the user to 'everything works as designed'. Case 2 (running check 3 on a 1h chart) is unlikely, because a 1h chart shows no 'today's volume'. I downgraded the severity: these are texts and a manual check, while the wrong number itself is F1. Logged-in Premium behaviour is still unverified (pine_plans 13 item 6), so the PLAYBOOK should keep a check, aimed at the right thing.",
+          "fix": "Text only (the feed meter is optional, not needed): line 248 → 'On the free feed intraday bars carry only Cboe's trades, on both sides of every intraday ratio and of the pace, so those compare like with like. The settled daily bar is consolidated, but at the close it is still provisional (see Today).' Lines 19-20 to match. PLAYBOOK: remove 'pace' from the 'consolidated | Cboe only' consequence. Replace check 3 with: 'the morning after an at-close alert, reload and compare the alert's ratio with the Data Window Ratio to typical for that bar'."
+        },
+        {
+          "id": "F3",
+          "verdict": "confirmed",
+          "severity": "minor",
+          "reason": "G81 used consolidated Yahoo 1-hour bars and built pace and final from the same bars (g81_pace_check.py docstring; RESEARCH_LOG entry 11). The script's pace (lines 113-156) uses TradingView 5-minute bars. On the free feed these are Cboe-only by inference from the 1h/4h measurements in pine_plans 10.2. The user's 'end of day' is the settled consolidated column. Cboe's single-day share ranged from 3.1% to 13.1% (10.2), so the share's day-to-day variation adds error that G81 did not contain. At later hours, where G81's error is only 9-14%, it could dominate. The figures quoted at lines 44 and 236 and in the PLAYBOOK were therefore not measured on the data the script reads. How much worse the real figures are is unknown. No computed number changes; the pace alert is off by default.",
+          "fix": "Lines 44 and 236, and the PLAYBOOK G81 table heading: add 'measured on consolidated hourly data (Yahoo, 2024); on TradingView's free feed the pace counts Cboe trades only and is noisier than these figures'. The in-script gap measure is optional."
+        },
+        {
+          "id": "F4",
+          "verdict": "confirmed",
+          "severity": "minor",
+          "reason": "Lines 116-117 and 141-156 assume a 09:30-16:00 grid, and nothing reads the session length. On a 13:00 close (Fri 27 Nov 2026, Thu 24 Dec 2026), dayShare at 12:50 is the median full-day share at slot 64, roughly 45%, while about 95% of the session is over. Both the table (line 235) and the pace alert (line 195) print it. The pace value itself remains a like-for-like 'so far against typical so far'. On 1h charts the 12:30 bar lasts 30 minutes and is compared with 60-minute medians, so it reads about half. On 4h the first bar is 3.5h. Pushing one short bar into a 20-value median (lines 92-98) barely moves it. All of these misread low, so they cannot cause false alerts, and they occur only on 2-3 days a year.",
+          "fix": "Minimal: in the Pace tooltip and the PLAYBOOK, add 'on 13:00 early-close days the share of the day done is understated and the last intraday bar is short'. Optional: on daily charts use `int closeMin = hour(time_close, syminfo.timezone) * 60 + minute(time_close, syminfo.timezone)`, and when live and closeMin < 960, print 'early close' in place of the % done. Whether time_close reflects the early close is from memory, unverified: check it on the daily chart on Fri 27 Nov 2026 before relying on it."
+        },
+        {
+          "id": "F5",
+          "verdict": "uncertain",
+          "severity": "minor",
+          "reason": "Part (a): SPY's realtime daily bar is presumably provisional for the same reason as F1, so the 'index X×' figure in the at-close alert (line 191) is biased low too. But ownRatio = provisional/provisional partly cancels, and whether a bias remains depends on how much SPY's provisional share differs from the stock's, which was never measured. Only a chart run can tell. The race documented in pine_requests 4.3 adds only seconds of staleness to a daily value. Part (b) is hypothetical: it depends on a subscription the trader may never buy. Part (c) is real by the documented gaps_off behaviour (4.1: 'fills the gaps... with the last confirmed values'), but only on non-US charts, which are outside this trader's universe of liquid US stocks. The table row (line 238) appears only on a confirmed bar, so after a reload it shows settled values on both sides.",
+          "fix": "Line 162: add `and syminfo.timezone == \"America/New_York\"` (cheap, handles (c)). In the at-close alert, when `barstate.isrealtime and not isIntra`, add 'provisional' to the index clause. Chart test together with F1: the next morning, compare the alert's index and 'vs market' figures with the reloaded Data Window."
+        },
+        {
+          "id": "F6",
+          "verdict": "refuted",
+          "severity": "cosmetic",
+          "reason": "The described harm does not occur. For a 23-hour NY-timezone symbol (NYMEX timezone from memory, unverified), the historical curves stay valid. `run` is cumulative in time order: the previous evening's bars (18:00-23:55 clamp to slot 77), then 00:00-09:30 overwrite slot 0, then slots 1-76, then 16:00-17:00 overwrite slot 77 with the full-day total. Between 09:35 and 15:55 the live pace compares 'volume since session start by this clock time' with the same quantity in past sessions, which is like for like. Live readings are garbage only in slot 0 (overnight: `frac * cum[0]` can be tiny, so the dot and table can spike) and in the evening at slot 77 (reads near 0, with about 100% done). In slot 0 the alert is blocked by `paceSlot >= 12` (line 193). In the evening the pace reads low, so the alert cannot fire on a bad reading. The table and dot can show nonsense overnight, but only on futures/FX, outside the US-stock universe; for US stocks with session.regular every intrabar lies 09:30-15:55.",
+          "fix": "None needed for this trader. Optional one-liner at line 120: `and (syminfo.type == \"stock\" or syminfo.type == \"fund\" or syminfo.type == \"dr\")`."
+        },
+        {
+          "id": "F7",
+          "verdict": "uncertain",
+          "severity": "minor",
+          "reason": "H46 says only that history excludes odd lots ('filters the odd lots trades out in the history'), in an article about differences from other sources. That realtime intraday bars include them, so live readings exceed reloaded ones, is the reviewer's memory and is not in the project notes. D2 does document that realtime and historical bars can come from different feeds and may be adjusted after a refresh, so some difference between live and reloaded bars is possible, but its sign and size are unknown. Only a chart test can settle it. If it exists, it would inflate live 1h/4h ratios and the pace and mix two bases into the slot medians (lines 92-98, 134) in long-running alerts.",
+          "fix": "No code change until measured. Chart test: note a just-closed 1h bar's volume in the Data Window, reload, and compare, on a ~$100 stock and a $700+ stock. If the reloaded value is lower by more than a few percent, skip `barstate.isrealtime` bars when pushing into `slots` and `curves`, and say so in the 'This bar' tooltip."
+        },
+        {
+          "id": "F8",
+          "verdict": "confirmed",
+          "severity": "cosmetic",
+          "reason": "(i) Line 234 maps every na pace to 'needs 10 sessions of 5-minute data'. Pace is also na when curves.size() >= 10 but ltV is empty (line 141), for example in the first moments after the open or when a request race (pine_requests 4.3) leaves the array empty, and when tn == 0 at the very start of slot 0. The message then gives the wrong reason. (ii) Lines 195 and 234 format timenow in syminfo.timezone (New York, guaranteed by paceUsable) without naming the zone. A reader in Europe sees a time 5-6 hours off from local time. The PLAYBOOK table does say '(ET)', but the alert message does not.",
+          "fix": "Line 234: `na(pace) ? (curves.size() < 10 ? \"needs 10 sessions of 5-minute data\" : \"no 5-minute data yet today\") : ...`. Lines 195 and 234: append \" ET\" after the formatted time."
+        }
+      ]
+    }
+  ],
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Review"
+    },
+    {
+      "type": "workflow_phase",
+      "index": 2,
+      "title": "Verify"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "review:runtime",
+      "phaseIndex": 1,
+      "phaseTitle": "Review",
+      "agentId": "a0d064f44039cdfbd",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1795469210807,
+      "queuedAt": 1795469210758,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "The script /home/user/aquacentinela/swing-lab/pine/sl_volume.pine is a Pine Script v6 indicator (\"SL Volume\") for a swing trader of liquid US stocks on TradingView Premium (1h, 4h, daily, weekly charts; alerts at bar close; cannot watch the screen). It compiles with TradingView's compiler with 0 errors and 0 warnings, but it has never run on a chart. Your job is to find what would go wrong when it…",
+      "promptFramed": true,
+      "lastProgressAt": 1795469667385,
+      "tokens": 217808,
+      "toolCalls": 15,
+      "durationMs": 456575,
+      "resultPreview": "{\"findings\":[{\"id\":\"VOL-RT-1\",\"title\":\"eAct[1] is read only on the last bar, inside an `if` and the right side of a lazy `or`, so it may first run on a realtime bar with no history buffer behind it\",\"severity\":\"minor\",\"lines\":\"166-167, 212, 242\",\"scenario\":\"Daily or weekly chart. You load the chart, or create the alert, while the market is open. The last bar is then a realtime bar, so `barstate.is…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "review:logic",
+      "phaseIndex": 1,
+      "phaseTitle": "Review",
+      "agentId": "a1a38530cbcbf1a77",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1795469210808,
+      "queuedAt": 1795469210759,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "The script /home/user/aquacentinela/swing-lab/pine/sl_volume.pine is a Pine Script v6 indicator (\"SL Volume\") for a swing trader of liquid US stocks on TradingView Premium (1h, 4h, daily, weekly charts; alerts at bar close; cannot watch the screen). It compiles with TradingView's compiler with 0 errors and 0 warnings, but it has never run on a chart. Your job is to find what would go wrong when it…",
+      "promptFramed": true,
+      "lastProgressAt": 1795469793693,
+      "tokens": 193566,
+      "toolCalls": 9,
+      "durationMs": 581990,
+      "resultPreview": "{\"findings\":[{\"id\":\"V1\",\"title\":\"Daily 'unusual' alert at the close compares the live-built day volume with a median of settled end-of-day volumes\",\"severity\":\"major\",\"lines\":\"68-69, 100-101, 160-163, 186-192\",\"scenario\":\"Daily chart with the 'Any alert() function call' alert running on the server. At each close the realtime daily bar is confirmed and `ratio = volume / typD` is computed from the v…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 3,
+      "label": "review:usage",
+      "phaseIndex": 1,
+      "phaseTitle": "Review",
+      "agentId": "a391714391148a399",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1795469667401,
+      "queuedAt": 1795469210759,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "The script /home/user/aquacentinela/swing-lab/pine/sl_volume.pine is a Pine Script v6 indicator (\"SL Volume\") for a swing trader of liquid US stocks on TradingView Premium (1h, 4h, daily, weekly charts; alerts at bar close; cannot watch the screen). It compiles with TradingView's compiler with 0 errors and 0 warnings, but it has never run on a chart. Your job is to find what would go wrong when it…",
+      "promptFramed": true,
+      "lastProgressAt": 1795470436448,
+      "tokens": 176997,
+      "toolCalls": 11,
+      "durationMs": 769047,
+      "resultPreview": "{\"findings\":[{\"id\":\"A\",\"title\":\"Without paid exchange data, the default close-of-day alert on daily charts almost never fires, and the evening reading looks like a quiet day\",\"severity\":\"major\",\"lines\":\"68, 101, 170, 186-192, 225-231 (compare 113-156, which avoids the problem)\",\"scenario\":\"Premium account without the paid NASDAQ/NYSE real-time add-ons. This is the PLAYBOOK case 'History consolidat…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 4,
+      "label": "review:data",
+      "phaseIndex": 1,
+      "phaseTitle": "Review",
+      "agentId": "a21342e2fc658bf46",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1795469793755,
+      "queuedAt": 1795469210759,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "The script /home/user/aquacentinela/swing-lab/pine/sl_volume.pine is a Pine Script v6 indicator (\"SL Volume\") for a swing trader of liquid US stocks on TradingView Premium (1h, 4h, daily, weekly charts; alerts at bar close; cannot watch the screen). It compiles with TradingView's compiler with 0 errors and 0 warnings, but it has never run on a chart. Your job is to find what would go wrong when it…",
+      "promptFramed": true,
+      "lastProgressAt": 1795470392293,
+      "tokens": 209109,
+      "toolCalls": 12,
+      "durationMs": 598538,
+      "resultPreview": "{\"findings\":[{\"id\":\"F1\",\"title\":\"Daily close alert, 'Today' row and column use the provisional daily volume, about a quarter below the settled figure\",\"severity\":\"major\",\"lines\":\"68-69, 101, 170, 186-192, 224-227\",\"scenario\":\"Daily chart of NASDAQ:AAPL on the free feed, with the alert 'At the close of an unusual bar' active. The project measured 11 Nov 2026: 2 to 9 minutes after 16:00 the realtime…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 5,
+      "label": "verify:runtime",
+      "phaseIndex": 2,
+      "phaseTitle": "Verify",
+      "agentId": "a9f7cf92cf58b9bdf",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1795470392326,
+      "queuedAt": 1795469667474,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "The script /home/user/aquacentinela/swing-lab/pine/sl_volume.pine is a Pine Script v6 indicator (\"SL Volume\") for a swing trader of liquid US stocks on TradingView Premium (1h, 4h, daily, weekly charts; alerts at bar close; cannot watch the screen). It compiles with TradingView's compiler with 0 errors and 0 warnings, but it has never run on a chart. Your job is to find what would go wrong when it…",
+      "promptFramed": true,
+      "lastProgressAt": 1795470508910,
+      "tokens": 135569,
+      "toolCalls": 12,
+      "durationMs": 116584,
+      "resultPreview": "{\"verdicts\":[{\"id\":\"VOL-RT-1\",\"verdict\":\"uncertain\",\"severity\":\"minor\",\"reason\":\"The execution path is confirmed. The only open question is whether the read fails, and only a chart run can settle that.\\n\\n(1) Line 212: on a chart loaded while the market is open, the last bar is the realtime bar. barstate.islast is false on every historical bar, so the table block first runs on that realtime bar. F…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 6,
+      "label": "verify:logic",
+      "phaseIndex": 2,
+      "phaseTitle": "Verify",
+      "agentId": "ae94421e56e969491",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1795470436464,
+      "queuedAt": 1795469793831,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "The script /home/user/aquacentinela/swing-lab/pine/sl_volume.pine is a Pine Script v6 indicator (\"SL Volume\") for a swing trader of liquid US stocks on TradingView Premium (1h, 4h, daily, weekly charts; alerts at bar close; cannot watch the screen). It compiles with TradingView's compiler with 0 errors and 0 warnings, but it has never run on a chart. Your job is to find what would go wrong when it…",
+      "promptFramed": true,
+      "lastProgressAt": 1795470673201,
+      "tokens": 178967,
+      "toolCalls": 11,
+      "durationMs": 236737,
+      "resultPreview": "{\"verdicts\":[{\"id\":\"V1\",\"verdict\":\"confirmed\",\"severity\":\"major\",\"reason\":\"Part (a) happens as described, and the project's own docs back it. Line 101 divides the realtime daily bar's volume by typD (line 68). typD is a median of settled end-of-day bars, which carry consolidated volume. 01_pine_capabilities.md line 40 [DOC/MEASURED]: on the Cboe One feed, intraday bars carry about 4-12% of consoli…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 7,
+      "label": "verify:data",
+      "phaseIndex": 2,
+      "phaseTitle": "Verify",
+      "agentId": "abd94a530be935fdd",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1795470508923,
+      "queuedAt": 1795470392390,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "The script /home/user/aquacentinela/swing-lab/pine/sl_volume.pine is a Pine Script v6 indicator (\"SL Volume\") for a swing trader of liquid US stocks on TradingView Premium (1h, 4h, daily, weekly charts; alerts at bar close; cannot watch the screen). It compiles with TradingView's compiler with 0 errors and 0 warnings, but it has never run on a chart. Your job is to find what would go wrong when it…",
+      "promptFramed": true,
+      "lastProgressAt": 1795470808470,
+      "tokens": 161981,
+      "toolCalls": 16,
+      "durationMs": 299546,
+      "resultPreview": "{\"verdicts\":[{\"id\":\"F1\",\"verdict\":\"confirmed\",\"severity\":\"major\",\"reason\":\"I could not refute this. Line 186 tests `ratio >= i_level` with barstate.isconfirmed and line 192 uses alert.freq_once_per_bar_close, so the decision is made on the realtime daily bar's volume. typD on line 68 is the median of settled bars when the chart loads. pine_plans.md 10.3 measured that the realtime AAPL daily bar 2-…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 8,
+      "label": "verify:usage",
+      "phaseIndex": 2,
+      "phaseTitle": "Verify",
+      "agentId": "a45a2999737d30de0",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1795470673213,
+      "queuedAt": 1795470436540,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "The script /home/user/aquacentinela/swing-lab/pine/sl_volume.pine is a Pine Script v6 indicator (\"SL Volume\") for a swing trader of liquid US stocks on TradingView Premium (1h, 4h, daily, weekly charts; alerts at bar close; cannot watch the screen). It compiles with TradingView's compiler with 0 errors and 0 warnings, but it has never run on a chart. Your job is to find what would go wrong when it…",
+      "promptFramed": true,
+      "lastProgressAt": 1795471038302,
+      "tokens": 183798,
+      "toolCalls": 10,
+      "durationMs": 365086,
+      "resultPreview": "{\"verdicts\":[{\"id\":\"A\",\"verdict\":\"confirmed\",\"severity\":\"major\",\"reason\":\"The direction is right but the size is wrong. The project's own measurement (pine_plans.md §10.3 [MEASURED], AAPL 2026-11-11, guest session) read the realtime daily bar 2-9 minutes after the close at 23.4M against 31.4M settled, which is 74%. Settled bars matched consolidated volume. Cboe-only intraday bars carry about 6% (§…"
+    }
+  ],
+  "totalTokens": 1457795,
+  "totalToolCalls": 96
+}

@@ -1,0 +1,9 @@
+# data never goes into the repository; rebuild with research/data_build/
+data/
+*.parquet
+*.csv.gz
+__pycache__/
+.pytest_cache/
+*.pyc
+node_modules/
+.ipynb_checkpoints/

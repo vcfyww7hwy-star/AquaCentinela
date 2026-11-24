@@ -1,0 +1,9 @@
+{
+ "what": "Quantiles (5%, 25%, 75%, 95%) of book return over h daily bars divided by s_p = sqrt(sum_ij w_i u_i rho_ij w_j u_j), u_i = ATR14_i / close_i * sqrt(h), rho = correlation of the last 60 daily log returns. Displayed by pine/sl_portfolio_desk.pine.",
+ "calibrated_on": "DEV + VAL, 2011-01-03 .. 2022-12-30, random books of 3 to 10 universe stocks sized as SL Risk Desk sizes them (research/experiments/g70_portfolio_band.py calibrate)",
+ "bands": {"5": [-1.27, -0.39, 0.52, 1.14], "10": [-1.25, -0.36, 0.53, 1.13], "20": [-1.23, -0.33, 0.55, 1.14]},
+ "min_positions": 2,
+ "criterion": {"c90": [0.86, 0.94], "c50": [0.45, 0.55]},
+ "criterion_note": "Fixed before the 2023-26 check: for risk-weighted books of 2, 3, 5, 8 and 10 positions, at each horizon, the 90% band holds 86-94% and the 50% band 45-55% of outcomes. Wider than the single-stock tolerance because the left tail of a diversified book depends on the regime (5% quantile at 10 bars: -1.15 on 2011-18, -1.43 on 2018-22).",
+ "status_note": "The lockbox had already been opened for the eight frozen claims of entry 7. This check is run once with constants committed beforehand; under the protocol it cannot earn the label 'demonstrated out of sample'."
+}

@@ -1,0 +1,143 @@
+{
+ "rows": 2809044,
+ "symbols": 1549,
+ "days": 260,
+ "A_volume_profile": {
+  "09:30": {
+   "median": 0.1689,
+   "mean": 0.1828,
+   "p10": 0.0917,
+   "p90": 0.2936
+  },
+  "10:30": {
+   "median": 0.1226,
+   "mean": 0.1303,
+   "p10": 0.0778,
+   "p90": 0.1883
+  },
+  "11:30": {
+   "median": 0.101,
+   "mean": 0.1095,
+   "p10": 0.0668,
+   "p90": 0.1571
+  },
+  "12:30": {
+   "median": 0.0909,
+   "mean": 0.0989,
+   "p10": 0.0603,
+   "p90": 0.1424
+  },
+  "13:30": {
+   "median": 0.0984,
+   "mean": 0.1061,
+   "p10": 0.0656,
+   "p90": 0.1517
+  },
+  "14:30": {
+   "median": 0.1279,
+   "mean": 0.1366,
+   "p10": 0.0859,
+   "p90": 0.1934
+  },
+  "15:30": {
+   "median": 0.2349,
+   "mean": 0.2358,
+   "p10": 0.1174,
+   "p90": 0.3487
+  }
+ },
+ "A_cumulative_by_bar_end": {
+  "09:30": 0.179,
+  "10:30": 0.309,
+  "11:30": 0.416,
+  "12:30": 0.512,
+  "13:30": 0.616,
+  "14:30": 0.751,
+  "15:30": 1.0
+ },
+ "B_agreement": {
+  "z1 <= -3 (crash day)": {
+   "signals_at_close": 3944,
+   "signals_at_1530": 3613,
+   "precision": 0.886,
+   "recall": 0.812
+  },
+  "z1 >= +3 (surge day)": {
+   "signals_at_close": 3160,
+   "signals_at_1530": 3003,
+   "precision": 0.912,
+   "recall": 0.867
+  },
+  "z5 <= -1.5 (5-day dip)": {
+   "signals_at_close": 21955,
+   "signals_at_1530": 21328,
+   "precision": 0.928,
+   "recall": 0.902
+  },
+  "close above 20-day average": {
+   "signals_at_close": 201219,
+   "signals_at_1530": 201063,
+   "precision": 0.977,
+   "recall": 0.976
+  },
+  "cross above 50-day average today": {
+   "signals_at_close": 11834,
+   "signals_at_1530": 11741,
+   "precision": 0.896,
+   "recall": 0.889
+  },
+  "new 20-day closing high": {
+   "signals_at_close": 51813,
+   "signals_at_1530": 51772,
+   "precision": 0.909,
+   "recall": 0.909
+  }
+ },
+ "B_last_half_hour_move_in_sigma": {
+  "0.5": 0.127,
+  "0.9": 0.375,
+  "0.99": 0.768
+ },
+ "C_qlike": {
+  "EWMA(20) of squared daily returns": {
+   "qlike": 0.752,
+   "median_ratio": 0.749,
+   "n": 359469
+  },
+  "EWMA(20) of 1h realised variance": {
+   "qlike": 0.6628,
+   "median_ratio": 0.678,
+   "n": 359469
+  },
+  "HAR-style mean of 1/5/22-day realised variance": {
+   "qlike": 0.7284,
+   "median_ratio": 0.754,
+   "n": 359469
+  },
+  "HAR-style mean of 1/5/22-day squared daily returns": {
+   "qlike": 0.9994,
+   "median_ratio": 0.886,
+   "n": 359469
+  }
+ },
+ "D_extremes": {
+  "high": {
+   "09:30": 0.494,
+   "10:30": 0.096,
+   "11:30": 0.063,
+   "12:30": 0.058,
+   "13:30": 0.061,
+   "14:30": 0.081,
+   "15:30": 0.146
+  },
+  "low": {
+   "09:30": 0.494,
+   "10:30": 0.102,
+   "11:30": 0.066,
+   "12:30": 0.062,
+   "13:30": 0.059,
+   "14:30": 0.077,
+   "15:30": 0.14
+  }
+ }
+}
