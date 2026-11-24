@@ -14,12 +14,13 @@ TradingView scripts still need a compile check. See [docs/06_validation_lite.md]
 |---|---|
 | `pine/trend_setups.pine` | Trend & Setups v2 (overlay): long-term trend as a risk switch, structure, setup D (dip in an uptrend), stop orders, sizing, alerts |
 | `pine/trend_setups_strategy.pine` | The same rules for TradingView's Strategy Tester (generated from the indicator; do not edit) |
-| `pine/relative_volume.pine` | Relative Volume (pane): volume relative to normal for the time of day, absorption at lows |
+| `pine/relative_volume.pine` | Relative Volume v3 (pane): how unusual a bar's volume is for the stock and the time of day, session pace, liquidity, data feed check |
 | `pine/vfi_faithful_v6.pine` | The LazyBear/LucF Volume Flow Indicator ported to Pine v6 with 8 defects fixed (baseline) |
 | `docs/00_roadmap.md` | What exists, what is open |
 | `docs/01_vfi_critique.md` | Measured critique of the original VFI |
 | `docs/02_research_protocol.md` | How rules are tested, and why brute-force optimisation is not used |
-| `docs/03_relative_volume.md` | Volume pane: what was removed and why |
+| `docs/03_relative_volume.md` | Relative Volume v3: specification |
+| `docs/07_relative_volume_review.md` | The external review of the volume pane, the tests of its claims (E10–E19) and the v3 changes |
 | `docs/04_trend_setups.md` | Trend & Setups v2: definitions, setups, evidence |
 | `docs/05_playbook.md` | How to use the suite |
 | `docs/06_validation_lite.md` | The tests on real stocks: plan, results, decisions |
