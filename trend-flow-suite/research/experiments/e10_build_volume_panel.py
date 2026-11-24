@@ -111,7 +111,7 @@ def features(item):
     return pan
 
 
-def build(name, stocks, outdir):
+def build(name, stocks, outdir, eval_from=None):
     t0 = time.time()
     with Pool(4) as pool:
         frames = pool.map(features, sorted(stocks.items()), chunksize=8)
@@ -130,6 +130,8 @@ def build(name, stocks, outdir):
         if pan[col].dtype == np.float64 and col not in ("open", "high", "low", "close", "volume", "dvol"):
             pan[col] = pan[col].astype(np.float32)
     pan["set"] = name
+    if eval_from is not None:                                   # keep a set strictly after earlier samples
+        pan["eval"] = pan["eval"] & (pan["date"] >= pd.Timestamp(eval_from))
     path = pathlib.Path(outdir) / f"panel_{name}.parquet"
     pan.to_parquet(path, index=False)
     ev = pan[pan["eval"]]
