@@ -1,0 +1,501 @@
+{
+ "GOOG_D": {
+  "bars": 1889,
+  "from": "2005-08-29",
+  "to": "2013-03-01",
+  "pct_bars_zeroed_by_threshold": 19.2,
+  "pct_bars_volume_capped": 1.6,
+  "vfi_p05_p50_p95": [
+   -17.5,
+   6.6,
+   31.1
+  ],
+  "decomp_identity_max_abs_err": 7.771561172376096e-15,
+  "var_share_new_bar_A": 0.453,
+  "var_share_dropoff_B": 0.542,
+  "var_share_renorm_C": 0.004,
+  "corr(dVFI, new-bar term)": 0.687,
+  "pct_days_VFI_moves_against_todays_flow": 20.9,
+  "big_swings_n": 58,
+  "big_swings_pct_today_bar_neutral_or_opposite": 1.7,
+  "big_swings_pct_dropoff_larger_than_today": 43.1,
+  "zero_crosses_n": 46,
+  "zero_crosses_pct_today_bar_neutral_or_opposite": 26.1,
+  "signals_per_year": {
+   "MA20_cross": 25.6,
+   "zero_cross": 6.1,
+   "buy_sell_levels": 5.3,
+   "big_swing": 7.7
+  },
+  "corr_VFI_vs_volume_free_twin": 0.939,
+  "corr_VFI_vs_130bar_log_return": 0.919,
+  "corr_VFI_vs_price_dev_from_SMA130": 0.739,
+  "sign_agreement_VFI_vs_momentum_%": 91.9,
+  "length_sensitivity": {
+   "50": {
+    "vfi_p05_p95": [
+     -11.9,
+     17.8
+    ],
+    "big_swings_per_yr": 8.1
+   },
+   "130": {
+    "vfi_p05_p95": [
+     -17.5,
+     31.1
+    ],
+    "big_swings_per_yr": 9.1
+   },
+   "200": {
+    "vfi_p05_p95": [
+     -25.9,
+     32.1
+    ],
+    "big_swings_per_yr": 8.2
+   }
+  },
+  "exp_vs_boxcar": {
+   "corr(change, today's flow) boxcar": 0.684,
+   "corr(change, today's flow) exponential": 0.994,
+   "zero_crosses boxcar": 42,
+   "zero_crosses exponential": 50,
+   "corr(levels)": 0.838
+  },
+  "regime_backtest_5bps": {
+   "BuyHold": {
+    "CAGR%": 14.7,
+    "Vol%": 33.35,
+    "Sharpe": 0.58,
+    "MaxDD%": -65.3,
+    "Switches/yr": 0.1,
+    "Exposure%": 99.9
+   },
+   "VFI>0": {
+    "CAGR%": 4.99,
+    "Vol%": 21.71,
+    "Sharpe": 0.33,
+    "MaxDD%": -49.4,
+    "Switches/yr": 6.3,
+    "Exposure%": 63.5
+   },
+   "VFI>EMA20(VFI)": {
+    "CAGR%": -2.1,
+    "Vol%": 20.33,
+    "Sharpe": -0.0,
+    "MaxDD%": -57.7,
+    "Switches/yr": 25.6,
+    "Exposure%": 50.0
+   },
+   "Mom130>0": {
+    "CAGR%": 9.21,
+    "Vol%": 22.01,
+    "Sharpe": 0.51,
+    "MaxDD%": -45.6,
+    "Switches/yr": 5.7,
+    "Exposure%": 64.5
+   },
+   "Close>SMA130": {
+    "CAGR%": 8.07,
+    "Vol%": 21.68,
+    "Sharpe": 0.47,
+    "MaxDD%": -45.1,
+    "Switches/yr": 11.1,
+    "Exposure%": 62.4
+   }
+  }
+ },
+ "SPX_D": {
+  "bars": 4772,
+  "from": "2000-01-12",
+  "to": "2018-12-31",
+  "pct_bars_zeroed_by_threshold": 16.2,
+  "pct_bars_volume_capped": 0.0,
+  "vfi_p05_p50_p95": [
+   -16.2,
+   7.6,
+   26.3
+  ],
+  "decomp_identity_max_abs_err": 6.772360450213455e-15,
+  "var_share_new_bar_A": 0.519,
+  "var_share_dropoff_B": 0.479,
+  "var_share_renorm_C": 0.002,
+  "corr(dVFI, new-bar term)": 0.712,
+  "pct_days_VFI_moves_against_todays_flow": 20.1,
+  "big_swings_n": 5,
+  "big_swings_pct_today_bar_neutral_or_opposite": 0.0,
+  "big_swings_pct_dropoff_larger_than_today": 0.0,
+  "zero_crosses_n": 148,
+  "zero_crosses_pct_today_bar_neutral_or_opposite": 24.6,
+  "signals_per_year": {
+   "MA20_cross": 28.7,
+   "zero_cross": 7.8,
+   "buy_sell_levels": 6.3,
+   "big_swing": 0.3
+  },
+  "corr_VFI_vs_volume_free_twin": 0.973,
+  "corr_VFI_vs_130bar_log_return": 0.835,
+  "corr_VFI_vs_price_dev_from_SMA130": 0.759,
+  "sign_agreement_VFI_vs_momentum_%": 90.4,
+  "length_sensitivity": {
+   "50": {
+    "vfi_p05_p95": [
+     -10.5,
+     15.1
+    ],
+    "big_swings_per_yr": 0.3
+   },
+   "130": {
+    "vfi_p05_p95": [
+     -16.2,
+     26.3
+    ],
+    "big_swings_per_yr": 0.3
+   },
+   "200": {
+    "vfi_p05_p95": [
+     -21.3,
+     35.6
+    ],
+    "big_swings_per_yr": 0.4
+   }
+  },
+  "exp_vs_boxcar": {
+   "corr(change, today's flow) boxcar": 0.714,
+   "corr(change, today's flow) exponential": 0.994,
+   "zero_crosses boxcar": 131,
+   "zero_crosses exponential": 158,
+   "corr(levels)": 0.895
+  },
+  "regime_backtest_5bps": {
+   "BuyHold": {
+    "CAGR%": 3.0,
+    "Vol%": 19.13,
+    "Sharpe": 0.25,
+    "MaxDD%": -56.8,
+    "Switches/yr": 0.1,
+    "Exposure%": 100.0
+   },
+   "VFI>0": {
+    "CAGR%": 2.32,
+    "Vol%": 11.69,
+    "Sharpe": 0.25,
+    "MaxDD%": -47.2,
+    "Switches/yr": 7.9,
+    "Exposure%": 71.7
+   },
+   "VFI>EMA20(VFI)": {
+    "CAGR%": 0.26,
+    "Vol%": 11.53,
+    "Sharpe": 0.08,
+    "MaxDD%": -27.4,
+    "Switches/yr": 28.7,
+    "Exposure%": 49.4
+   },
+   "Mom130>0": {
+    "CAGR%": 4.59,
+    "Vol%": 10.92,
+    "Sharpe": 0.47,
+    "MaxDD%": -32.5,
+    "Switches/yr": 6.1,
+    "Exposure%": 68.3
+   },
+   "Close>SMA130": {
+    "CAGR%": -0.43,
+    "Vol%": 10.5,
+    "Sharpe": 0.01,
+    "MaxDD%": -47.5,
+    "Switches/yr": 12.8,
+    "Exposure%": 66.9
+   }
+  }
+ },
+ "NASDAQ_D": {
+  "bars": 4772,
+  "from": "2000-01-12",
+  "to": "2018-12-31",
+  "pct_bars_zeroed_by_threshold": 16.3,
+  "pct_bars_volume_capped": 0.0,
+  "vfi_p05_p50_p95": [
+   -17.1,
+   9.8,
+   31.0
+  ],
+  "decomp_identity_max_abs_err": 9.103828801926284e-15,
+  "var_share_new_bar_A": 0.505,
+  "var_share_dropoff_B": 0.494,
+  "var_share_renorm_C": 0.001,
+  "corr(dVFI, new-bar term)": 0.704,
+  "pct_days_VFI_moves_against_todays_flow": 20.8,
+  "big_swings_n": 7,
+  "big_swings_pct_today_bar_neutral_or_opposite": 0.0,
+  "big_swings_pct_dropoff_larger_than_today": 42.9,
+  "zero_crosses_n": 120,
+  "zero_crosses_pct_today_bar_neutral_or_opposite": 25.0,
+  "signals_per_year": {
+   "MA20_cross": 27.8,
+   "zero_cross": 6.3,
+   "buy_sell_levels": 5.7,
+   "big_swing": 0.4
+  },
+  "corr_VFI_vs_volume_free_twin": 0.974,
+  "corr_VFI_vs_130bar_log_return": 0.842,
+  "corr_VFI_vs_price_dev_from_SMA130": 0.762,
+  "sign_agreement_VFI_vs_momentum_%": 89.3,
+  "length_sensitivity": {
+   "50": {
+    "vfi_p05_p95": [
+     -11.3,
+     16.1
+    ],
+    "big_swings_per_yr": 0.3
+   },
+   "130": {
+    "vfi_p05_p95": [
+     -17.1,
+     31.0
+    ],
+    "big_swings_per_yr": 0.4
+   },
+   "200": {
+    "vfi_p05_p95": [
+     -19.9,
+     41.5
+    ],
+    "big_swings_per_yr": 0.4
+   }
+  },
+  "exp_vs_boxcar": {
+   "corr(change, today's flow) boxcar": 0.705,
+   "corr(change, today's flow) exponential": 0.993,
+   "zero_crosses boxcar": 117,
+   "zero_crosses exponential": 162,
+   "corr(levels)": 0.9
+  },
+  "regime_backtest_5bps": {
+   "BuyHold": {
+    "CAGR%": 2.91,
+    "Vol%": 25.1,
+    "Sharpe": 0.24,
+    "MaxDD%": -77.9,
+    "Switches/yr": 0.1,
+    "Exposure%": 100.0
+   },
+   "VFI>0": {
+    "CAGR%": 5.66,
+    "Vol%": 16.36,
+    "Sharpe": 0.42,
+    "MaxDD%": -55.3,
+    "Switches/yr": 6.3,
+    "Exposure%": 71.1
+   },
+   "VFI>EMA20(VFI)": {
+    "CAGR%": 1.83,
+    "Vol%": 14.19,
+    "Sharpe": 0.2,
+    "MaxDD%": -38.4,
+    "Switches/yr": 27.8,
+    "Exposure%": 47.8
+   },
+   "Mom130>0": {
+    "CAGR%": 4.11,
+    "Vol%": 14.97,
+    "Sharpe": 0.34,
+    "MaxDD%": -48.7,
+    "Switches/yr": 8.5,
+    "Exposure%": 66.8
+   },
+   "Close>SMA130": {
+    "CAGR%": 2.89,
+    "Vol%": 13.81,
+    "Sharpe": 0.28,
+    "MaxDD%": -48.6,
+    "Switches/yr": 11.1,
+    "Exposure%": 66.0
+   }
+  }
+ },
+ "GOOG_W": {
+  "bars": 187,
+  "from": "2009-08-07",
+  "to": "2013-03-01",
+  "pct_bars_zeroed_by_threshold": 13.9,
+  "pct_bars_volume_capped": 0.0,
+  "vfi_p05_p50_p95": [
+   -9.3,
+   6.0,
+   17.6
+  ],
+  "decomp_identity_max_abs_err": 6.328271240363392e-15,
+  "var_share_new_bar_A": 0.387,
+  "var_share_dropoff_B": 0.62,
+  "var_share_renorm_C": -0.006,
+  "corr(dVFI, new-bar term)": 0.628,
+  "pct_days_VFI_moves_against_todays_flow": 24.5,
+  "big_swings_n": 0,
+  "zero_crosses_n": 8,
+  "zero_crosses_pct_today_bar_neutral_or_opposite": 0.0,
+  "signals_per_year": {
+   "MA20_cross": 4.7,
+   "zero_cross": 2.2,
+   "buy_sell_levels": 1.7,
+   "big_swing": 0.0
+  },
+  "corr_VFI_vs_volume_free_twin": 0.961,
+  "corr_VFI_vs_130bar_log_return": 0.949,
+  "corr_VFI_vs_price_dev_from_SMA130": 0.847,
+  "sign_agreement_VFI_vs_momentum_%": 98.3,
+  "length_sensitivity": {
+   "50": {
+    "vfi_p05_p95": [
+     -7.6,
+     13.0
+    ],
+    "big_swings_per_yr": 1.0
+   },
+   "130": {
+    "vfi_p05_p95": [
+     -9.3,
+     17.6
+    ],
+    "big_swings_per_yr": 2.2
+   },
+   "200": {
+    "vfi_p05_p95": [
+     4.4,
+     29.8
+    ],
+    "big_swings_per_yr": 6.6
+   }
+  },
+  "exp_vs_boxcar": {
+   "corr(change, today's flow) boxcar": NaN,
+   "corr(change, today's flow) exponential": NaN,
+   "zero_crosses boxcar": 0,
+   "zero_crosses exponential": 0,
+   "corr(levels)": NaN
+  }
+ },
+ "SPX_W": {
+  "bars": 785,
+  "from": "2003-12-26",
+  "to": "2019-01-04",
+  "pct_bars_zeroed_by_threshold": 15.8,
+  "pct_bars_volume_capped": 0.3,
+  "vfi_p05_p50_p95": [
+   -3.1,
+   18.7,
+   32.5
+  ],
+  "decomp_identity_max_abs_err": 1.0436096431476471e-14,
+  "var_share_new_bar_A": 0.565,
+  "var_share_dropoff_B": 0.431,
+  "var_share_renorm_C": 0.004,
+  "corr(dVFI, new-bar term)": 0.764,
+  "pct_days_VFI_moves_against_todays_flow": 16.5,
+  "big_swings_n": 1,
+  "big_swings_pct_today_bar_neutral_or_opposite": 0.0,
+  "big_swings_pct_dropoff_larger_than_today": 0.0,
+  "zero_crosses_n": 11,
+  "zero_crosses_pct_today_bar_neutral_or_opposite": 25.0,
+  "signals_per_year": {
+   "MA20_cross": 5.2,
+   "zero_cross": 0.7,
+   "buy_sell_levels": 0.8,
+   "big_swing": 0.1
+  },
+  "corr_VFI_vs_volume_free_twin": 0.962,
+  "corr_VFI_vs_130bar_log_return": 0.886,
+  "corr_VFI_vs_price_dev_from_SMA130": 0.8,
+  "sign_agreement_VFI_vs_momentum_%": 89.5,
+  "length_sensitivity": {
+   "50": {
+    "vfi_p05_p95": [
+     -11.6,
+     19.6
+    ],
+    "big_swings_per_yr": 0.0
+   },
+   "130": {
+    "vfi_p05_p95": [
+     -3.1,
+     32.5
+    ],
+    "big_swings_per_yr": 0.1
+   },
+   "200": {
+    "vfi_p05_p95": [
+     5.9,
+     45.6
+    ],
+    "big_swings_per_yr": 0.5
+   }
+  },
+  "exp_vs_boxcar": {
+   "corr(change, today's flow) boxcar": 0.741,
+   "corr(change, today's flow) exponential": 0.996,
+   "zero_crosses boxcar": 8,
+   "zero_crosses exponential": 8,
+   "corr(levels)": 0.782
+  }
+ },
+ "NASDAQ_W": {
+  "bars": 785,
+  "from": "2003-12-26",
+  "to": "2019-01-04",
+  "pct_bars_zeroed_by_threshold": 15.2,
+  "pct_bars_volume_capped": 0.0,
+  "vfi_p05_p50_p95": [
+   5.1,
+   18.7,
+   31.5
+  ],
+  "decomp_identity_max_abs_err": 5.773159728050814e-15,
+  "var_share_new_bar_A": 0.505,
+  "var_share_dropoff_B": 0.491,
+  "var_share_renorm_C": 0.004,
+  "corr(dVFI, new-bar term)": 0.702,
+  "pct_days_VFI_moves_against_todays_flow": 19.4,
+  "big_swings_n": 0,
+  "zero_crosses_n": 6,
+  "signals_per_year": {
+   "MA20_cross": 6.9,
+   "zero_cross": 0.4,
+   "buy_sell_levels": 0.2,
+   "big_swing": 0.0
+  },
+  "corr_VFI_vs_volume_free_twin": 0.979,
+  "corr_VFI_vs_130bar_log_return": 0.627,
+  "corr_VFI_vs_price_dev_from_SMA130": 0.572,
+  "sign_agreement_VFI_vs_momentum_%": 83.2,
+  "length_sensitivity": {
+   "50": {
+    "vfi_p05_p95": [
+     -12.0,
+     16.9
+    ],
+    "big_swings_per_yr": 0.0
+   },
+   "130": {
+    "vfi_p05_p95": [
+     5.1,
+     31.5
+    ],
+    "big_swings_per_yr": 0.0
+   },
+   "200": {
+    "vfi_p05_p95": [
+     19.1,
+     39.2
+    ],
+    "big_swings_per_yr": 0.0
+   }
+  },
+  "exp_vs_boxcar": {
+   "corr(change, today's flow) boxcar": 0.687,
+   "corr(change, today's flow) exponential": 0.998,
+   "zero_crosses boxcar": 0,
+   "zero_crosses exponential": 16,
+   "corr(levels)": 0.624
+  }
+ }
+}

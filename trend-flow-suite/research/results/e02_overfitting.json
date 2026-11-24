@@ -1,0 +1,661 @@
+{
+ "theory_best_sharpe_from_luck": [
+  {
+   "trials": 10,
+   "E[max z]": 1.57,
+   "best_SR_from_luck_10y": 0.5,
+   "best_SR_from_luck_20y": 0.35,
+   "best_SR_from_luck_30y": 0.29
+  },
+  {
+   "trials": 100,
+   "E[max z]": 2.53,
+   "best_SR_from_luck_10y": 0.8,
+   "best_SR_from_luck_20y": 0.57,
+   "best_SR_from_luck_30y": 0.46
+  },
+  {
+   "trials": 1000,
+   "E[max z]": 3.26,
+   "best_SR_from_luck_10y": 1.03,
+   "best_SR_from_luck_20y": 0.73,
+   "best_SR_from_luck_30y": 0.59
+  },
+  {
+   "trials": 10000,
+   "E[max z]": 3.86,
+   "best_SR_from_luck_10y": 1.22,
+   "best_SR_from_luck_20y": 0.86,
+   "best_SR_from_luck_30y": 0.7
+  },
+  {
+   "trials": 100000,
+   "E[max z]": 4.39,
+   "best_SR_from_luck_10y": 1.39,
+   "best_SR_from_luck_20y": 0.98,
+   "best_SR_from_luck_30y": 0.8
+  },
+  {
+   "trials": 1000000,
+   "E[max z]": 4.87,
+   "best_SR_from_luck_10y": 1.54,
+   "best_SR_from_luck_20y": 1.09,
+   "best_SR_from_luck_30y": 0.89
+  }
+ ],
+ "corr_daily_returns_spx_nasdaq": 0.887,
+ "SPX": {
+  "variants": 5280,
+  "eval_period": [
+   "2001-03-23",
+   "2018-12-31"
+  ],
+  "is_period": [
+   "2001-03-23",
+   "2009-12-31"
+  ],
+  "oos_period": [
+   "2010-01-04",
+   "2018-12-31"
+  ],
+  "compute_seconds": {
+   "build_all_variants": 0.23,
+   "backtest_all_variants": 0.27
+  },
+  "buy_hold": {
+   "is": {
+    "cagr_pct": -0.03,
+    "vol_pct": 22.19,
+    "sharpe": 0.11,
+    "max_dd_pct": -56.8
+   },
+   "oos": {
+    "cagr_pct": 9.44,
+    "vol_pct": 15.0,
+    "sharpe": 0.676,
+    "max_dd_pct": -19.8
+   }
+  },
+  "is_winner": {
+   "config": {
+    "length": 200,
+    "coef": 0.5,
+    "vcoef": 3.5,
+    "smooth": 10,
+    "rule": "VFI>0"
+   },
+   "sharpe_is": 0.756,
+   "sharpe_oos": 0.562,
+   "oos_percentile_among_variants": 81.4,
+   "is_summary": {
+    "cagr_pct": 6.97,
+    "vol_pct": 9.51,
+    "sharpe": 0.756,
+    "max_dd_pct": -11.2
+   },
+   "oos_summary": {
+    "cagr_pct": 7.21,
+    "vol_pct": 14.2,
+    "sharpe": 0.562,
+    "max_dd_pct": -19.4
+   }
+  },
+  "top10_is": [
+   {
+    "config": {
+     "length": 200,
+     "coef": 0.5,
+     "vcoef": 3.5,
+     "smooth": 10,
+     "rule": "VFI>0"
+    },
+    "sharpe_is": 0.756,
+    "sharpe_oos": 0.562
+   },
+   {
+    "config": {
+     "length": 200,
+     "coef": 0.5,
+     "vcoef": 5.0,
+     "smooth": 10,
+     "rule": "VFI>0"
+    },
+    "sharpe_is": 0.756,
+    "sharpe_oos": 0.562
+   },
+   {
+    "config": {
+     "length": 200,
+     "coef": 0.5,
+     "vcoef": 2.5,
+     "smooth": 10,
+     "rule": "VFI>0"
+    },
+    "sharpe_is": 0.756,
+    "sharpe_oos": 0.562
+   },
+   {
+    "config": {
+     "length": 160,
+     "coef": 0.2,
+     "vcoef": 1.5,
+     "smooth": 10,
+     "rule": "VFI>2"
+    },
+    "sharpe_is": 0.752,
+    "sharpe_oos": 0.552
+   },
+   {
+    "config": {
+     "length": 200,
+     "coef": 0.2,
+     "vcoef": 3.5,
+     "smooth": 3,
+     "rule": "VFI>2"
+    },
+    "sharpe_is": 0.696,
+    "sharpe_oos": 0.329
+   },
+   {
+    "config": {
+     "length": 200,
+     "coef": 0.2,
+     "vcoef": 2.5,
+     "smooth": 3,
+     "rule": "VFI>2"
+    },
+    "sharpe_is": 0.696,
+    "sharpe_oos": 0.329
+   },
+   {
+    "config": {
+     "length": 200,
+     "coef": 0.2,
+     "vcoef": 5.0,
+     "smooth": 3,
+     "rule": "VFI>2"
+    },
+    "sharpe_is": 0.696,
+    "sharpe_oos": 0.329
+   },
+   {
+    "config": {
+     "length": 160,
+     "coef": 0.3,
+     "vcoef": 5.0,
+     "smooth": 10,
+     "rule": "VFI>0"
+    },
+    "sharpe_is": 0.688,
+    "sharpe_oos": 0.423
+   },
+   {
+    "config": {
+     "length": 160,
+     "coef": 0.3,
+     "vcoef": 3.5,
+     "smooth": 10,
+     "rule": "VFI>0"
+    },
+    "sharpe_is": 0.688,
+    "sharpe_oos": 0.423
+   },
+   {
+    "config": {
+     "length": 160,
+     "coef": 0.3,
+     "vcoef": 2.5,
+     "smooth": 10,
+     "rule": "VFI>0"
+    },
+    "sharpe_is": 0.688,
+    "sharpe_oos": 0.423
+   }
+  ],
+  "median_sharpe": {
+   "is": 0.121,
+   "oos": 0.396
+  },
+  "spearman_rank_corr_is_vs_oos": 0.372,
+  "effective_independent_trials": 3.1,
+  "deflated_sharpe_is_winner": {
+   "with_all_trials": {
+    "sr_hat_per_period": 0.04763072970874128,
+    "sr_star_per_period": 0.07075456945492051,
+    "dsr": 0.1406496260885503,
+    "psr_vs_zero": 0.9867651654374072
+   },
+   "with_effective_trials": {
+    "sr_hat_per_period": 0.04763072970874128,
+    "sr_star_per_period": 0.016900519424328467,
+    "dsr": 0.9239005598934564,
+    "psr_vs_zero": 0.9867651654374072
+   }
+  },
+  "pbo_cscv": {
+   "n_splits": 12870,
+   "pbo": 0.43162393162393164,
+   "median_is_sr_of_winner": 0.8078411782922397,
+   "median_oos_sr_of_winner": 0.2728543451149126,
+   "median_oos_sr_all_variants": 0.24860537257557708,
+   "prob_oos_loss_of_winner": 0.1745920745920746,
+   "degradation_slope_oos_on_is": -0.8388769669091971
+  },
+  "null_test": {
+   "real_best_is_timing_sharpe": 0.613,
+   "null_best_is_timing_sharpe": [
+    0.405,
+    0.857,
+    0.627,
+    0.557,
+    0.653,
+    0.557,
+    0.462,
+    0.385,
+    0.48,
+    0.639,
+    0.428,
+    0.534,
+    0.636,
+    0.601,
+    0.378,
+    0.796,
+    0.449,
+    0.749,
+    0.339,
+    0.455,
+    0.223,
+    0.444,
+    0.271,
+    0.359,
+    0.697,
+    0.602,
+    0.42,
+    0.35,
+    0.52,
+    0.793,
+    0.719,
+    0.352,
+    0.633,
+    0.888,
+    0.409,
+    0.327,
+    0.338,
+    0.508,
+    0.474,
+    0.604,
+    0.847,
+    0.416,
+    0.371,
+    0.434,
+    0.485,
+    0.656,
+    0.424,
+    0.486,
+    0.519,
+    0.57,
+    0.682,
+    0.351,
+    0.514,
+    0.586,
+    0.476,
+    0.825,
+    0.355,
+    0.803,
+    0.13,
+    0.59,
+    0.694,
+    0.801,
+    0.689,
+    0.75,
+    0.626,
+    0.953,
+    0.517,
+    0.898,
+    0.456,
+    0.346,
+    0.667,
+    0.437,
+    0.659,
+    0.362,
+    0.646,
+    0.604,
+    0.695,
+    0.662,
+    0.435,
+    0.686,
+    0.459,
+    0.448,
+    0.636,
+    0.676,
+    0.502,
+    0.573,
+    0.306,
+    0.325,
+    0.62,
+    0.789,
+    0.574,
+    0.486,
+    0.834,
+    0.953,
+    0.787,
+    0.36,
+    0.355,
+    0.627,
+    0.445,
+    0.818
+   ],
+   "null_median": 0.545,
+   "null_p90": 0.801,
+   "p_value": 0.396,
+   "n_null": 100
+  }
+ },
+ "NASDAQ": {
+  "variants": 5280,
+  "eval_period": [
+   "2001-03-23",
+   "2018-12-31"
+  ],
+  "is_period": [
+   "2001-03-23",
+   "2009-12-31"
+  ],
+  "oos_period": [
+   "2010-01-04",
+   "2018-12-31"
+  ],
+  "compute_seconds": {
+   "build_all_variants": 0.2,
+   "backtest_all_variants": 0.25
+  },
+  "buy_hold": {
+   "is": {
+    "cagr_pct": 2.06,
+    "vol_pct": 26.79,
+    "sharpe": 0.21,
+    "max_dd_pct": -55.6
+   },
+   "oos": {
+    "cagr_pct": 12.69,
+    "vol_pct": 17.2,
+    "sharpe": 0.781,
+    "max_dd_pct": -23.6
+   }
+  },
+  "is_winner": {
+   "config": {
+    "length": 160,
+    "coef": 0.2,
+    "vcoef": 3.5,
+    "smooth": 3,
+    "rule": "VFI>0"
+   },
+   "sharpe_is": 0.79,
+   "sharpe_oos": 0.615,
+   "oos_percentile_among_variants": 66.9,
+   "is_summary": {
+    "cagr_pct": 9.95,
+    "vol_pct": 13.1,
+    "sharpe": 0.79,
+    "max_dd_pct": -15.8
+   },
+   "oos_summary": {
+    "cagr_pct": 8.83,
+    "vol_pct": 15.8,
+    "sharpe": 0.615,
+    "max_dd_pct": -23.6
+   }
+  },
+  "top10_is": [
+   {
+    "config": {
+     "length": 160,
+     "coef": 0.2,
+     "vcoef": 3.5,
+     "smooth": 3,
+     "rule": "VFI>0"
+    },
+    "sharpe_is": 0.79,
+    "sharpe_oos": 0.615
+   },
+   {
+    "config": {
+     "length": 160,
+     "coef": 0.2,
+     "vcoef": 5.0,
+     "smooth": 3,
+     "rule": "VFI>0"
+    },
+    "sharpe_is": 0.79,
+    "sharpe_oos": 0.615
+   },
+   {
+    "config": {
+     "length": 160,
+     "coef": 0.2,
+     "vcoef": 2.5,
+     "smooth": 3,
+     "rule": "VFI>0"
+    },
+    "sharpe_is": 0.79,
+    "sharpe_oos": 0.615
+   },
+   {
+    "config": {
+     "length": 160,
+     "coef": 0.5,
+     "vcoef": 1.5,
+     "smooth": 1,
+     "rule": "VFI>-5"
+    },
+    "sharpe_is": 0.774,
+    "sharpe_oos": 0.55
+   },
+   {
+    "config": {
+     "length": 160,
+     "coef": 0.2,
+     "vcoef": 1.5,
+     "smooth": 3,
+     "rule": "VFI>0"
+    },
+    "sharpe_is": 0.761,
+    "sharpe_oos": 0.633
+   },
+   {
+    "config": {
+     "length": 160,
+     "coef": 0.2,
+     "vcoef": 3.5,
+     "smooth": 10,
+     "rule": "VFI>0"
+    },
+    "sharpe_is": 0.736,
+    "sharpe_oos": 0.596
+   },
+   {
+    "config": {
+     "length": 160,
+     "coef": 0.2,
+     "vcoef": 2.5,
+     "smooth": 10,
+     "rule": "VFI>0"
+    },
+    "sharpe_is": 0.736,
+    "sharpe_oos": 0.596
+   },
+   {
+    "config": {
+     "length": 160,
+     "coef": 0.2,
+     "vcoef": 5.0,
+     "smooth": 10,
+     "rule": "VFI>0"
+    },
+    "sharpe_is": 0.736,
+    "sharpe_oos": 0.596
+   },
+   {
+    "config": {
+     "length": 160,
+     "coef": 0.2,
+     "vcoef": 1.5,
+     "smooth": 10,
+     "rule": "VFI>0"
+    },
+    "sharpe_is": 0.73,
+    "sharpe_oos": 0.654
+   },
+   {
+    "config": {
+     "length": 160,
+     "coef": 0.5,
+     "vcoef": 1.5,
+     "smooth": 3,
+     "rule": "VFI>-5"
+    },
+    "sharpe_is": 0.73,
+    "sharpe_oos": 0.581
+   }
+  ],
+  "median_sharpe": {
+   "is": 0.245,
+   "oos": 0.537
+  },
+  "spearman_rank_corr_is_vs_oos": 0.207,
+  "effective_independent_trials": 3.0,
+  "deflated_sharpe_is_winner": {
+   "with_all_trials": {
+    "sr_hat_per_period": 0.049737906216044805,
+    "sr_star_per_period": 0.05093904640432897,
+    "dsr": 0.47747489973472707,
+    "psr_vs_zero": 0.990339416300819
+   },
+   "with_effective_trials": {
+    "sr_hat_per_period": 0.049737906216044805,
+    "sr_star_per_period": 0.011803920255987498,
+    "dsr": 0.9627973604579763,
+    "psr_vs_zero": 0.990339416300819
+   }
+  },
+  "pbo_cscv": {
+   "n_splits": 12870,
+   "pbo": 0.6054390054390054,
+   "median_is_sr_of_winner": 0.8948439471182301,
+   "median_oos_sr_of_winner": 0.2961405347841597,
+   "median_oos_sr_all_variants": 0.37287989380421255,
+   "prob_oos_loss_of_winner": 0.15423465423465424,
+   "degradation_slope_oos_on_is": -0.8375910896593081
+  },
+  "null_test": {
+   "real_best_is_timing_sharpe": 0.552,
+   "null_best_is_timing_sharpe": [
+    0.843,
+    0.294,
+    0.568,
+    0.523,
+    0.422,
+    0.458,
+    0.306,
+    0.547,
+    0.382,
+    0.477,
+    0.882,
+    0.545,
+    0.523,
+    0.489,
+    0.523,
+    0.442,
+    0.414,
+    0.61,
+    0.52,
+    0.399,
+    0.24,
+    0.647,
+    0.476,
+    0.375,
+    0.54,
+    0.537,
+    0.474,
+    0.58,
+    0.509,
+    0.586,
+    0.476,
+    0.431,
+    0.28,
+    0.487,
+    0.514,
+    0.165,
+    0.519,
+    0.665,
+    0.471,
+    0.298,
+    0.564,
+    0.747,
+    0.419,
+    0.474,
+    0.849,
+    0.64,
+    0.258,
+    0.698,
+    0.421,
+    0.606,
+    0.442,
+    0.435,
+    0.694,
+    0.46,
+    0.734,
+    0.966,
+    0.669,
+    0.387,
+    0.424,
+    0.584,
+    0.667,
+    0.603,
+    0.53,
+    0.505,
+    0.685,
+    0.62,
+    0.385,
+    0.425,
+    0.545,
+    0.764,
+    0.621,
+    0.9,
+    0.512,
+    0.475,
+    0.695,
+    0.721,
+    0.6,
+    0.602,
+    0.924,
+    0.639,
+    0.646,
+    0.653,
+    0.295,
+    0.362,
+    0.483,
+    0.757,
+    0.615,
+    0.786,
+    0.515,
+    0.332,
+    0.433,
+    0.581,
+    0.578,
+    0.526,
+    0.468,
+    0.655,
+    0.61,
+    1.069,
+    0.727,
+    0.843
+   ],
+   "null_median": 0.528,
+   "null_p90": 0.758,
+   "p_value": 0.446,
+   "n_null": 100
+  }
+ }
+}

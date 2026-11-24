@@ -1,0 +1,187 @@
+{
+ "GOOG_big_swings": {
+  "n": 58,
+  "max_abs_new_bar_term": 2.5,
+  "pct_where_dropped_bar_pushes_same_way_by>=0.5": 100.0
+ },
+ "SPX_D_pct_days_sign(d_hlc3)!=sign(d_close)": 17.5,
+ "GOOG_D_pct_days_sign(d_hlc3)!=sign(d_close)": 16.1,
+ "SPX_D_kernel_switches": {
+  "boxcar": {
+   "zero_cross_switches": 112,
+   "switches_band_0.10sd": 56,
+   "switches_band_0.25sd": 34,
+   "mean_lag_bars": 64.5
+  },
+  "ema": {
+   "zero_cross_switches": 162,
+   "switches_band_0.10sd": 92,
+   "switches_band_0.25sd": 58,
+   "mean_lag_bars": 64.5
+  },
+  "2pole": {
+   "zero_cross_switches": 36,
+   "switches_band_0.10sd": 33,
+   "switches_band_0.25sd": 29,
+   "mean_lag_bars": 64.0
+  },
+  "hann": {
+   "zero_cross_switches": 38,
+   "switches_band_0.10sd": 32,
+   "switches_band_0.25sd": 30,
+   "mean_lag_bars": 64.5
+  }
+ },
+ "NASDAQ_D_kernel_switches": {
+  "boxcar": {
+   "zero_cross_switches": 114,
+   "switches_band_0.10sd": 52,
+   "switches_band_0.25sd": 25,
+   "mean_lag_bars": 64.5
+  },
+  "ema": {
+   "zero_cross_switches": 166,
+   "switches_band_0.10sd": 86,
+   "switches_band_0.25sd": 50,
+   "mean_lag_bars": 64.5
+  },
+  "2pole": {
+   "zero_cross_switches": 38,
+   "switches_band_0.10sd": 28,
+   "switches_band_0.25sd": 19,
+   "mean_lag_bars": 64.0
+  },
+  "hann": {
+   "zero_cross_switches": 33,
+   "switches_band_0.10sd": 30,
+   "switches_band_0.25sd": 26,
+   "mean_lag_bars": 64.5
+  }
+ },
+ "GOOG_D_kernel_switches": {
+  "boxcar": {
+   "zero_cross_switches": 36,
+   "switches_band_0.10sd": 16,
+   "switches_band_0.25sd": 12,
+   "mean_lag_bars": 64.5
+  },
+  "ema": {
+   "zero_cross_switches": 50,
+   "switches_band_0.10sd": 32,
+   "switches_band_0.25sd": 16,
+   "mean_lag_bars": 64.5
+  },
+  "2pole": {
+   "zero_cross_switches": 16,
+   "switches_band_0.10sd": 14,
+   "switches_band_0.25sd": 12,
+   "mean_lag_bars": 64.0
+  },
+  "hann": {
+   "zero_cross_switches": 16,
+   "switches_band_0.10sd": 14,
+   "switches_band_0.25sd": 12,
+   "mean_lag_bars": 64.5
+  }
+ },
+ "SPX_D_lag_at_turns": {
+  "top_2000-03-24": {
+   "VFI": {
+    "date": "2000-05-22",
+    "bars_after_turn": 40,
+    "price_move_since_turn_%": -8.3
+   },
+   "Mom130": {
+    "date": "2000-05-23",
+    "bars_after_turn": 41,
+    "price_move_since_turn_%": -10.1
+   }
+  },
+  "bottom_2002-10-09": {
+   "VFI": {
+    "date": "2002-12-17",
+    "bars_after_turn": 48,
+    "price_move_since_turn_%": 16.3
+   },
+   "Mom130": {
+    "date": "2003-01-14",
+    "bars_after_turn": 66,
+    "price_move_since_turn_%": 19.9
+   }
+  },
+  "top_2007-10-09": {
+   "VFI": {
+    "date": "2007-11-12",
+    "bars_after_turn": 24,
+    "price_move_since_turn_%": -8.0
+   },
+   "Mom130": {
+    "date": "2007-11-07",
+    "bars_after_turn": 21,
+    "price_move_since_turn_%": -5.7
+   }
+  },
+  "bottom_2009-03-09": {
+   "VFI": {
+    "date": "2009-04-17",
+    "bars_after_turn": 28,
+    "price_move_since_turn_%": 28.5
+   },
+   "Mom130": {
+    "date": "2009-05-04",
+    "bars_after_turn": 39,
+    "price_move_since_turn_%": 34.1
+   }
+  }
+ },
+ "SPX_W_lag_at_turns": {
+  "top_2000-03-24": {
+   "VFI": {
+    "date": "2003-12-26",
+    "bars_after_turn": 1,
+    "price_move_since_turn_%": -28.3
+   },
+   "Mom130": {
+    "date": "2003-12-26",
+    "bars_after_turn": 1,
+    "price_move_since_turn_%": -28.3
+   }
+  },
+  "bottom_2002-10-09": {
+   "VFI": {
+    "date": "2004-01-02",
+    "bars_after_turn": 2,
+    "price_move_since_turn_%": 32.7
+   },
+   "Mom130": {
+    "date": "2004-02-27",
+    "bars_after_turn": 10,
+    "price_move_since_turn_%": 37.1
+   }
+  },
+  "top_2007-10-09": {
+   "VFI": {
+    "date": "2008-09-19",
+    "bars_after_turn": 50,
+    "price_move_since_turn_%": -19.6
+   },
+   "Mom130": {
+    "date": "2008-07-04",
+    "bars_after_turn": 39,
+    "price_move_since_turn_%": -19.1
+   }
+  },
+  "bottom_2009-03-09": {
+   "VFI": {
+    "date": "2009-08-28",
+    "bars_after_turn": 25,
+    "price_move_since_turn_%": 50.6
+   },
+   "Mom130": {
+    "date": "2011-01-07",
+    "bars_after_turn": 96,
+    "price_move_since_turn_%": 86.1
+   }
+  }
+ }
+}

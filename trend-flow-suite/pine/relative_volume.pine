@@ -1,0 +1,293 @@
+//@version=6
+// Relative Volume v4 — trend-flow-suite (lower pane)
+// What it is: an honest description of participation. How unusual is this bar's volume for this stock and this
+// time of day, how the session is running so far, and how liquid the stock is. It is NOT a buy or sell signal.
+// Its job is triage: which stocks deserve a look today, and whether a stock is liquid enough to trade.
+// Evidence (docs/07_relative_volume_review.md; daily bars, about 6.4 million evaluated stock-days, 2000 to 2026,
+// companies still listed today only):
+//   - No volume reading tested predicts direction at swing horizons in 2018-2026. The former mark "heavy volume,
+//     small move, stretched low" (H) is removed: it gained 0.05 to 0.1 risk units over 10 bars in 2000-2017 and
+//     nothing in 2018-2026, in calm and in stressed markets alike.
+//   - After a bar of unusual volume, the ATR recomputed at that bar already reflects the volatility that follows,
+//     also when the bar's own range was small: use the ATR of the signal bar and add no extra stop distance.
+//   - Unusual volume clusters on a few mechanical days. On quarterly expiry days and on the Russell reconstitution
+//     day about 37% of stocks trade at unusual volume, against 3.5% on other days: those days are tinted and, by
+//     default, send no unusual-volume alert.
+// v4 (second external review, each point tested): a bar still open when the chart loads is no longer treated as
+// closed; the day estimate on the live daily bar is removed (it ran 6-22% low against the final daily volume,
+// which includes the closing auction); the session pace alert works in units of its own spread and fires once a
+// session; alerts carry the numbers; plots are ordered for the Pine Screener.
+// Python twin: research/tfs/relvol.py (tests: research/tests/test_relvol.py). Personal research tool, not advice.
+indicator("Relative Volume v4", shorttitle = "RVOL4", overlay = false, precision = 2)
+
+// ───── Palette (Okabe-Ito, colour-blind safe) ─────
+color C_UP   = #0072B2
+color C_DN   = #D55E00
+color C_PACE = #E69F00
+color C_LIVE = #999999
+
+float  CLIP     = 3.0
+int    MIN_CLIP = 20
+string SC_MULT  = "Multiple (×)"
+string SC_LOG   = "Log2 (1× = 0, 2× = +1)"
+string AL_UN    = "Unusual volume"
+string AL_EX    = "Extreme volume only"
+string AL_OFF   = "Off"
+
+// ───── Robust references per time-of-day slot: twins of research/tfs/relvol.py ─────
+// Level mu and spread s of ln(volume) for the slot `key`, as known BEFORE this bar, and the number n of earlier
+// observations. Each observation enters as mu + clip(ln(volume) - mu, ±clip × s). Averages are bias-corrected
+// (weighted sum ÷ sum of weights), so nothing is ever seeded by a single bar. Zero-volume bars are skipped.
+// `upd` is true only on a closed bar.
+logLevelLagged(float vol, int key, int span, int scaleSpan, float clip, int minClip, bool upd) =>
+    var map<int, float> mNum  = map.new<int, float>()
+    var map<int, float> mDen  = map.new<int, float>()
+    var map<int, float> mNum2 = map.new<int, float>()
+    var map<int, float> mDen2 = map.new<int, float>()
+    var map<int, int>   mCnt  = map.new<int, int>()
+    int   cnt  = nz(mCnt.get(key), 0)
+    float num  = nz(mNum.get(key))
+    float den  = nz(mDen.get(key))
+    float num2 = nz(mNum2.get(key))
+    float den2 = nz(mDen2.get(key))
+    float mu   = cnt > 0 and den > 0 ? num / den : na
+    float s    = den2 > 0 and num2 > 0 ? math.sqrt(num2 / den2) : na
+    if upd and not na(vol) and vol > 0
+        float a  = 2.0 / (span + 1)
+        float b  = 2.0 / (scaleSpan + 1)
+        float lx = math.log(vol)
+        if cnt == 0
+            mNum.put(key, a * lx)
+            mDen.put(key, a)
+            mCnt.put(key, 1)
+        else
+            float e = lx - mu
+            if cnt >= minClip and not na(s) and s > 0
+                e := math.max(-clip * s, math.min(clip * s, e))
+            mNum.put(key, (1.0 - a) * num + a * (mu + e))
+            mDen.put(key, (1.0 - a) * den + a)
+            mNum2.put(key, (1.0 - b) * num2 + b * e * e)
+            mDen2.put(key, (1.0 - b) * den2 + b)
+            mCnt.put(key, cnt + 1)
+    [mu, s, cnt]
+
+// Clipped, bias-corrected average of squared returns for the slot, as known BEFORE this bar, and its count.
+// A zero return is an observation like any other.
+varLagged(float ret, int key, int span, float clip, int minClip, bool upd) =>
+    var map<int, float> mNum = map.new<int, float>()
+    var map<int, float> mDen = map.new<int, float>()
+    var map<int, int>   mCnt = map.new<int, int>()
+    int   cnt = nz(mCnt.get(key), 0)
+    float num = nz(mNum.get(key))
+    float den = nz(mDen.get(key))
+    float v   = cnt > 0 and den > 0 ? num / den : na
+    if upd and not na(ret)
+        float a  = 2.0 / (span + 1)
+        float x2 = ret * ret
+        if cnt >= minClip and not na(v) and v > 0
+            x2 := math.min(x2, clip * clip * v)
+        mNum.put(key, (1.0 - a) * num + a * x2)
+        mDen.put(key, (1.0 - a) * den + a)
+        mCnt.put(key, cnt + 1)
+    [v, cnt]
+
+fmtMoney(float x) =>
+    na(x) ? "—" : x >= 1e9 ? str.tostring(x / 1e9, "0.00") + " bn" : str.tostring(x / 1e6, "0.0") + " M"
+
+// ───── Inputs ─────
+string G_N = "Normal volume"
+int    spanIntra = input.int(20, "Intraday: sessions per time-of-day slot", minval = 5, group = G_N)
+int    spanDaily = input.int(50, "Daily and higher: bars", minval = 10, group = G_N)
+int    scaleSpan = input.int(100, "Spread of log volume: observations", minval = 20, group = G_N,
+     tooltip = "How many earlier bars of the same slot define this stock's usual spread of volume. Tested value: 100.")
+float  flagZ     = input.float(2.0, "Unusual volume at zV ≥", minval = 1.0, step = 0.25, group = G_N,
+     tooltip = "zV = (ln volume − its normal) ÷ its usual spread. On daily bars zV ≥ 2 is about the busiest 4% of bars for every kind of stock tested, where a fixed multiple such as 2× is 3% of days for the steadiest stocks and 7% for erratic ones. It describes; no trading benefit has been shown. Known limit: for about 30 bars after a day of 5× volume the flag is about 20% less likely.")
+float  extremeZ  = input.float(3.0, "Extreme volume at zV ≥", minval = 1.5, step = 0.25, group = G_N,
+     tooltip = "About 1% of daily bars.")
+
+string G_A = "Alerts"
+bool   skipMech  = input.bool(true, "No volume alert on expiry and index-rebalance days", group = G_A,
+     tooltip = "US-listed stocks and funds. Applies to the unusual, extreme and session-pace alerts. Quarterly expiry (third Friday of March, June, September and December; the Thursday before when that Friday is the Juneteenth holiday or its observance) and the Russell reconstitution (fourth Friday of June). In 2018–2026 about 37% of stocks traded at unusual volume on those days, against 3.5% on other days: 18% of all flags fell on 2% of the days. Those days are tinted and left out of 'last unusual volume'.")
+float  minMove   = input.float(0.0, "Volume alert only if the bar moved at least (σ, 0 = any)", minval = 0.0, step = 0.5, group = G_A,
+     tooltip = "About 4 stocks in 100 have unusual volume on a normal day. Requiring a close-to-close move of 1.5σ keeps 53% of those alerts, 2σ keeps 42%. This only thins the alerts: bars that pass were not found to continue or reverse.")
+float  paceAlert = input.float(2.5, "Session pace alert at zV ≥", minval = 1.0, step = 0.25, group = G_A,
+     tooltip = "Intraday charts with regular trading hours. Fires once per session, at the close of the first bar where the session's volume so far is this many spreads above what is normal by that time of day. On 60-minute bars (170 stocks, 13 months): at 2.5 about 4 stocks in 100 alert on a day, 63% of those days end with unusual volume on the daily chart, and 3 of 4 such days are announced (56% before 11:30). At 2.0: 7 in 100, 43%, 9 of 10. A fixed multiple is worse: 2× fired on 12 stocks in 100 and 26% ended unusual, because the first hour's volume is erratic.")
+string dynAlert  = input.string(AL_UN, "alert() message with the numbers for", options = [AL_UN, AL_EX, AL_OFF], group = G_A,
+     tooltip = "Create an alert on this indicator with the condition 'Any alert() function call' to receive one line with relative volume, zV, the bar's move and the stock's dollar volume. The separate alert conditions (unusual, extreme, session pace) remain available and are what the Pine Screener uses.")
+bool   dynPace   = input.bool(true, "alert() message for the session pace too", group = G_A)
+
+string G_D = "Display"
+string scaleIn   = input.string(SC_MULT, "Column scale", options = [SC_MULT, SC_LOG], group = G_D)
+float  capX      = input.float(6.0, "Multiple scale: cap columns at ×", minval = 2.0, step = 1.0, group = G_D,
+     tooltip = "Columns above the cap are drawn at the cap with a small triangle; the status table and the data window show the true value.")
+bool   showLevel = input.bool(true, "Show the unusual-volume level for this stock", group = G_D)
+bool   showPace  = input.bool(true, "Intraday charts: show the session pace line", group = G_D,
+     tooltip = "Volume of the session so far ÷ what is normal by this time of day, as of the last closed bar. Regular trading hours only. The status table adds its zV: the same figure in units of its usual spread at that time of day. At the session's last bar it is the day's volume against its 20-session normal (close to, but not the same as, the daily chart's figure).")
+bool   showTable = input.bool(true, "Show status table", group = G_D)
+
+// ───── Data guard ─────
+float cumAll = ta.cum(nz(volume))
+if barstate.islast and cumAll == 0
+    runtime.error("This symbol has no volume data. Use a symbol with volume (e.g. SPY instead of the SPX index).")
+
+// ───── Closed bar or bar in progress ─────
+// When a chart loads while the market is open, the bar in progress is processed as a historical bar and
+// barstate.isconfirmed is true on it until the first live update arrives (Pine manual, "Bar states"). Such a bar
+// must not count as closed. On tick, Renko and similar charts the forming bar has no closing time; a delayed feed
+// runs up to about 20 minutes behind the clock.
+string pfx     = syminfo.prefix
+bool   delayed = str.endswith(pfx, "_DL") or str.endswith(pfx, "_DLY")
+int    feedLag = delayed ? 20 * 60 * 1000 : 0
+bool openAtLoad = barstate.islast and barstate.ishistory and (na(time_close) or timenow < time_close + feedLag)
+bool conf       = barstate.isconfirmed and not openAtLoad
+bool live       = barstate.islast and not conf
+
+// ───── Time-of-day slot: clock time of the bar's open (exchange time) and the bar's length ─────
+// A half-day's short closing bar gets its own slot instead of polluting the normal one. On daily and higher
+// timeframes, and on second-based, Renko, range and similar charts, there is a single slot.
+bool todOK   = timeframe.isminutes and (chart.is_standard or chart.is_heikinashi)
+int  lenMin  = int(math.round((time_close - time) / 60000.0))
+int  slotKey = todOK ? (hour(time) * 60 + minute(time)) * 10000 + nz(lenMin, 0) : 0
+int  span    = todOK ? spanIntra : spanDaily
+int  minObs  = todOK ? 10 : 25
+
+// ───── Relative volume, its z-score, and the bar's move in σ ─────
+float r = close > 0 and close[1] > 0 ? math.log(close / close[1]) : na
+[mu, s, n] = logLevelLagged(volume, slotKey, span, scaleSpan, CLIP, MIN_CLIP, conf)
+bool  ready  = n >= minObs and not na(mu)
+bool  hasS   = ready and not na(s) and s > 0
+float normal = ready ? math.exp(mu) : na
+float rvol   = ready ? (volume > 0 ? volume / normal : 0.0) : na
+float zv     = hasS and volume > 0 ? (math.log(volume) - mu) / s : na
+float level  = hasS ? math.exp(flagZ * s) : na
+[varR, nR] = varLagged(r, slotKey, span, CLIP, MIN_CLIP, conf)
+float sigma  = nR >= minObs and not na(varR) and varR > 0 ? math.sqrt(varR) : na
+float z      = r / sigma
+
+// ───── Session pace on intraday charts: volume so far ÷ normal volume by this time of day ─────
+// Regular trading hours only: with extended hours an hourly bar can straddle the open and the figure loses its meaning.
+bool paceOK = todOK and syminfo.session == session.regular
+var float cumVol = 0.0
+cumVol := session.isfirstbar ? nz(volume) : cumVol + nz(volume)
+[muC, sC, nC] = logLevelLagged(paceOK ? cumVol : na, slotKey, spanIntra, scaleSpan, CLIP, MIN_CLIP, conf)
+float pace  = paceOK and nC >= minObs and not na(muC) and cumVol > 0 ? cumVol / math.exp(muC) : na
+float paceZ = not na(pace) and not na(sC) and sC > 0 ? (math.log(cumVol) - muC) / sC : na
+// While a bar is in progress its cumulative volume is partial, so show the values of the last closed bar
+float paceShow  = paceOK and live ? (session.isfirstbar ? na : pace[1]) : pace
+float paceZShow = paceOK and live ? (session.isfirstbar ? na : paceZ[1]) : paceZ
+// The pace alert fires once per session
+var bool paceFired = false
+if session.isfirstbar
+    paceFired := false
+bool paceCross = paceOK and conf and paceZ >= paceAlert and not paceFired
+if paceCross
+    paceFired := true
+
+// ───── Liquidity and a self-check of the intraday history (one request) ─────
+// Intraday charts ask for the daily bars; daily and higher charts ask for their own timeframe (no lower-timeframe request).
+string reqTf = timeframe.isintraday ? "D" : timeframe.period
+[advReq, volPrevReq] = request.security(syminfo.tickerid, reqTf, [ta.sma(close * volume, 20)[1], volume[1]], lookahead = barmerge.lookahead_on)
+float advDay  = ta.sma(close * volume, 20)[1]
+float advWeek = ta.sma(close * volume, 4)[1] / 5.0
+// Average traded value per day, in the currency of the prices: 20 days on intraday and daily charts, the last
+// 4 weeks ÷ 5 on weekly charts
+string ccy = na(syminfo.currency) ? "" : syminfo.currency
+float adv = timeframe.isintraday ? advReq : timeframe.isdaily and timeframe.multiplier == 1 ? advDay : timeframe.isweekly and timeframe.multiplier == 1 ? advWeek : na
+// Yesterday's volume summed from the chart's bars ÷ yesterday's daily bar. The daily bar includes the closing auction and
+// late prints, so 0.6 to 1 is normal (0.45 on a quarterly expiry). Far below 0.3 means the intraday history is partial.
+// It says nothing about the bar in progress.
+var float feedRatio = na
+if paceOK and session.isfirstbar and volPrevReq > 0 and cumVol[1] > 0
+    feedRatio := cumVol[1] / volPrevReq
+
+// ───── Mechanical volume: quarterly expiry and Russell reconstitution (US-listed stocks and funds) ─────
+bool usListed = syminfo.country == "US" and (syminfo.type == "stock" or syminfo.type == "fund" or syminfo.type == "dr")
+bool dayChart = timeframe.isintraday or (timeframe.isdaily and timeframe.multiplier == 1)
+bool thirdFri = dayofweek == dayofweek.friday and dayofmonth >= 15 and dayofmonth <= 21
+// When the third Friday of June is the Juneteenth holiday (19 June on a Friday: 2026, 2037) or the day it is
+// observed (19 June on a Saturday: 2027, 2032), the market is closed and the expiry is the Thursday before
+bool juneThu  = year >= 2022 and month == 6 and dayofweek == dayofweek.thursday and (dayofmonth == 17 or dayofmonth == 18)
+bool qExpiry  = month % 3 == 0 and (thirdFri or juneThu)
+bool russell  = month == 6 and dayofweek == dayofweek.friday and dayofmonth >= 22 and dayofmonth <= 28
+bool mechDay  = usListed and dayChart and (qExpiry or russell)
+
+// ───── Events (closed bars only) ─────
+bool unusual      = zv >= flagZ
+bool extreme      = zv >= extremeZ
+bool skipDay      = skipMech and mechDay
+bool moved        = minMove <= 0 or math.abs(z) >= minMove
+bool unusualEvt   = conf and unusual and not skipDay
+bool alertUnusual = unusualEvt and moved
+bool alertExtreme = conf and extreme and not skipDay and moved
+bool alertPace    = paceCross and not skipDay
+
+var int    lastUnBar = na
+var string lastUn    = "—"
+if unusualEvt
+    lastUnBar := bar_index
+    lastUn    := str.format_time(time, timeframe.isintraday ? "yyyy-MM-dd HH:mm" : "yyyy-MM-dd", syminfo.timezone)
+int barsSinceUnusual = bar_index - lastUnBar
+
+// ───── Numeric series first: data window, alert placeholders {{plot_0}}..{{plot_4}}, Pine Screener columns ─────
+plot(rvol, "RVOL", display = display.data_window)
+plot(zv, "zV", display = display.data_window)
+plot(z, "Move", display = display.data_window)
+plot(paceShow, "Pace", display = display.data_window)
+plot(paceZShow, "Pace z", display = display.data_window)
+plot(barsSinceUnusual, "Bars since unusual", display = display.data_window)
+plot(adv, "Turnover per day", display = display.data_window)
+
+// ───── Visual plots ─────
+bool  logScale = scaleIn == SC_LOG
+float LN2      = math.log(2.0)
+float colVal   = logScale ? (rvol > 0 ? math.log(rvol) / LN2 : na) : math.min(rvol, capX)
+float lvlVal   = logScale ? math.log(level) / LN2 : (level > capX ? na : level)
+float paceVal  = logScale ? (paceShow > 0 ? math.log(paceShow) / LN2 : na) : math.min(paceShow, capX)
+color dirCol   = na(r) or r >= 0 ? C_UP : C_DN
+color colCol   = live ? color.new(C_LIVE, 40) : color.new(dirCol, extreme ? 0 : unusual ? 25 : 65)
+bgcolor(mechDay ? color.new(C_PACE, 88) : na, title = "Expiry or index-rebalance day")
+plot(colVal, "Relative volume", color = colCol, style = plot.style_columns)
+plot(showLevel ? lvlVal : na, "Unusual level for this stock", color = color.new(color.gray, 35), style = plot.style_stepline)
+plot(showPace and paceOK ? paceVal : na, "Session pace line", color = C_PACE, linewidth = 2, style = plot.style_stepline)
+hline(logScale ? 0.0 : 1.0, "Normal", color = color.new(color.gray, 30), linestyle = hline.style_solid)
+plotshape(not logScale and not live and rvol > capX, title = "Above the cap", style = shape.triangleup, location = location.top, color = dirCol, size = size.tiny)
+// Slot of the bar, for the Pine ↔ Python parity check
+plot(slotKey, "dbg_key", display = display.data_window)
+
+// ───── Status table ─────
+var table tbl = table.new(position.top_right, 2, 7, bgcolor = color.new(color.black, 85), border_width = 1)
+if showTable and barstate.islast
+    string mechTxt = mechDay ? (russell ? "   index-rebalance day" : "   quarterly expiry") : ""
+    string rvTxt   = na(rvol) ? "warming up" : live ? str.tostring(rvol, "0.00") + "× so far (bar in progress)" + mechTxt : str.tostring(rvol, "0.00") + "×" + (na(zv) ? "" : "   zV " + str.tostring(zv, "0.0")) + mechTxt
+    string lvlTxt  = na(level) ? "—" : "≥ " + str.tostring(level, "0.0") + "×" + (todOK ? " at this time of day" : timeframe.isintraday ? " (no time-of-day adjustment on this chart type)" : " for this stock")
+    string paceTxt = not paceOK ? "intraday charts, regular hours" : na(paceShow) ? "—" : str.tostring(paceShow, "0.00") + (live ? "× at the last closed bar" : "× of normal by this time") + (na(paceZShow) ? "" : "   zV " + str.tostring(paceZShow, "0.0"))
+    string unTxt   = na(lastUnBar) ? "—" : lastUn + "  (" + str.tostring(barsSinceUnusual) + " bars ago)"
+    string feedTxt = pfx + (delayed ? " · delayed" : "") + (na(feedRatio) ? " · not checked on this chart" : " · yesterday's bars ÷ daily bar " + str.tostring(feedRatio, "0.00"))
+    bool   feedBad = delayed or feedRatio < 0.3
+    table.cell(tbl, 0, 0, "Relative volume", text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 1, 0, rvTxt, text_color = live ? color.silver : unusual ? color.white : color.silver, text_size = size.small)
+    table.cell(tbl, 0, 1, "Unusual from", text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 1, 1, lvlTxt, text_color = color.silver, text_size = size.small)
+    table.cell(tbl, 0, 2, "Session pace", text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 1, 2, paceTxt, text_color = color.silver, text_size = size.small)
+    table.cell(tbl, 0, 3, "Bar move", text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 1, 3, na(z) ? "—" : str.tostring(z, "0.0") + " σ", text_color = color.silver, text_size = size.small)
+    table.cell(tbl, 0, 4, ccy == "USD" ? "Dollar volume per day" : "Turnover per day (" + ccy + ")", text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 1, 4, fmtMoney(adv), text_color = color.silver, text_size = size.small)
+    table.cell(tbl, 0, 5, "Last unusual volume", text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 1, 5, unTxt, text_color = color.silver, text_size = size.small)
+    table.cell(tbl, 0, 6, "Intraday history", text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 1, 6, feedTxt, text_color = feedBad ? C_DN : color.silver, text_size = size.small)
+
+// ───── Alerts (bar close) ─────
+// Alert conditions: the message carries the values of the first numeric plots.
+alertcondition(alertUnusual, "RVOL4 unusual volume", "Unusual volume on {{ticker}} ({{interval}}): {{plot_0}}x normal, zV {{plot_1}}, bar move {{plot_2}} sigma, close {{close}}")
+alertcondition(alertExtreme, "RVOL4 extreme volume", "Extreme volume on {{ticker}} ({{interval}}): {{plot_0}}x normal, zV {{plot_1}}, bar move {{plot_2}} sigma, close {{close}}")
+alertcondition(alertPace, "RVOL4 session pace", "Session volume on {{ticker}} ({{interval}}) is {{plot_3}}x of normal for this time of day (zV {{plot_4}})")
+// One formatted line through alert(): use the condition "Any alert() function call".
+if (dynAlert == AL_UN and alertUnusual) or (dynAlert == AL_EX and alertExtreme)
+    string pct  = na(close[1]) ? "n/a" : str.tostring(100.0 * (close / close[1] - 1.0), "0.0") + "%"
+    string sigT = na(z) ? "sigma n/a" : str.tostring(z, "0.0") + " sigma"
+    alert(syminfo.ticker + " (" + timeframe.period + "): volume " + str.tostring(rvol, "0.0") + "x normal, zV " + str.tostring(zv, "0.0") + ", move " + pct + " (" + sigT + "), close " + str.tostring(close) + ", traded per day " + fmtMoney(adv) + " " + ccy + (mechDay ? ", expiry or index-rebalance day" : ""), alert.freq_once_per_bar_close)
+if dynPace and alertPace
+    alert(syminfo.ticker + " (" + timeframe.period + "): session volume " + str.tostring(pace, "0.0") + "x of normal for this time of day (zV " + str.tostring(paceZ, "0.0") + ")", alert.freq_once_per_bar_close)
